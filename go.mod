@@ -1,4 +1,4 @@
-module github.com/blackholesun/aeolus
+module github.com/sfate/aeolus
 
 go 1.26.3
 

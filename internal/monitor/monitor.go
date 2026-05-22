@@ -3,12 +3,20 @@ package monitor
 import (
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/blackholesun/aeolus/internal/tmux"
+	"github.com/sfate/aeolus/internal/tmux"
 )
+
+// reANSI matches ANSI/VT escape sequences including SGR colors and OSC8 hyperlinks.
+var reANSI = regexp.MustCompile(`\x1b(?:\[[0-9;?]*[a-zA-Z]|\][^\x1b]*(?:\x1b\\|\x07)|[@-Z\\-_])`)
+
+func stripANSI(s string) string {
+	return reANSI.ReplaceAllString(s, "")
+}
 
 // Status represents the current state of a Claude Code session.
 type Status int
@@ -19,6 +27,7 @@ const (
 	StatusIdle              // claude running, idle
 	StatusWorking           // claude actively processing/outputting
 	StatusPermission        // waiting for permission approval
+	StatusQuestion          // claude asked a yes/no question
 )
 
 // String returns a human-readable label for the status.
@@ -32,6 +41,8 @@ func (s Status) String() string {
 		return "WORKING"
 	case StatusPermission:
 		return "PERMISSION"
+	case StatusQuestion:
+		return "QUESTION"
 	default:
 		return "UNKNOWN"
 	}
@@ -44,11 +55,18 @@ type PermissionRequest struct {
 	RawText string // full captured context
 }
 
+// QuestionRequest holds details about a yes/no question Claude is asking.
+type QuestionRequest struct {
+	Text    string // the question line
+	RawText string // full captured context
+}
+
 // Session represents a tmux pane and its detected Claude Code state.
 type Session struct {
 	Pane      tmux.Pane
 	Status    Status
 	Request   *PermissionRequest
+	Question  *QuestionRequest
 	Content   string    // last N lines of pane content
 	UpdatedAt time.Time
 }
@@ -132,9 +150,16 @@ func hasClaudeDescendant(rootPID int, children map[int][]int, procMap map[int]pr
 	return false
 }
 
-// tailLines returns the last n lines of text.
+// tailLines returns the last n non-blank lines of text.
+// tmux capture-pane pads every line to terminal width with spaces, so raw
+// "blank" lines at the bottom are actually lines full of spaces — not empty.
+// We strip those trailing whitespace-only lines before taking the tail so
+// that detection patterns don't land in blank padding.
 func tailLines(text string, n int) string {
 	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
 	if len(lines) > n {
 		lines = lines[len(lines)-n:]
 	}
@@ -200,32 +225,51 @@ func parsePermissionRequest(content string) *PermissionRequest {
 }
 
 // hasPermissionPatterns checks if the content contains permission request indicators.
-// Must be called on the tail of the pane only (last ~10 lines) to avoid false
+// Must be called on the tail of the pane only (last ~12 lines) to avoid false
 // positives from already-answered prompts in the scroll history.
+// ANSI is stripped first: Claude Code individually colors words like "Esc", "to",
+// "cancel" so the joined phrase is not contiguous in raw escape-laden output.
 func hasPermissionPatterns(content string) bool {
+	clean := stripANSI(content)
+
 	// Most reliable: box + y/n together.
-	hasBox := strings.Contains(content, "╭") && strings.Contains(content, "╰")
-	hasYN := strings.Contains(content, "(y/n)") ||
-		strings.Contains(content, "(Y/n)") ||
-		strings.Contains(content, "(y/N)") ||
-		strings.Contains(content, "Allow? ")
+	hasBox := strings.Contains(clean, "╭") && strings.Contains(clean, "╰")
+	hasYN := strings.Contains(clean, "(y/n)") ||
+		strings.Contains(clean, "(Y/n)") ||
+		strings.Contains(clean, "(y/N)") ||
+		strings.Contains(clean, "Allow? ")
 	if hasBox && hasYN {
 		return true
 	}
 
 	// Interactive selector UI (no y/n prompt, uses arrow keys).
-	if strings.Contains(content, "Allow once") || strings.Contains(content, "Allow for this session") {
+	if strings.Contains(clean, "Allow once") || strings.Contains(clean, "Allow for this session") {
 		return true
 	}
 
-	// Explicit combined patterns that are unambiguous on their own.
+	// Explicit patterns unambiguous on their own.
+	// "Esc to cancel" appears in the numbered-selection UI for both tool-use
+	// and edit-approval dialogs ("Do you want to make this edit?  1. Yes  Esc to cancel").
+	// These phrases can also appear quoted in Claude's prose or code diffs, so we
+	// only match lines where the phrase is NOT preceded by a quote character — i.e.,
+	// it's UI text, not a string literal or inline citation.
 	explicit := []string{
 		"Allow? (y/n)",
 		"Do you want to proceed",
+		"Do you want to make this edit",
 		"Allow this action",
+		"Esc to cancel",
 	}
-	for _, p := range explicit {
-		if strings.Contains(content, p) {
+	for _, line := range strings.Split(clean, "\n") {
+		for _, p := range explicit {
+			idx := strings.Index(line, p)
+			if idx < 0 {
+				continue
+			}
+			// Reject if the phrase is preceded by a quote — it's inside a string.
+			if strings.ContainsAny(line[:idx], `"'`) {
+				continue
+			}
 			return true
 		}
 	}
@@ -241,9 +285,97 @@ func hasWorkingPatterns(content string) bool {
 			return true
 		}
 	}
-	return strings.Contains(content, "⏳") ||
+	if strings.Contains(content, "⏳") ||
 		strings.Contains(content, "Working...") ||
-		strings.Contains(content, "Thinking...")
+		strings.Contains(content, "Thinking...") {
+		return true
+	}
+	// Claude Code uses decorative Unicode symbols for active thinking:
+	//   Misc Symbols U+2600–U+27FF: ✻ ✶ ✳ ✸ ✽ etc. → "✽ Wibbling…"
+	//   Middle dot U+00B7: ·  → "· Booping…", "· Compacting context…"
+	// Strip ANSI first so color codes don't hide the leading symbol.
+	// Historical timing lines contain " for " ("✻ Crunched for 3s") — skip those.
+	clean := stripANSI(content)
+	for _, line := range strings.Split(clean, "\n") {
+		line = strings.TrimSpace(line)
+		if len(line) == 0 || !strings.Contains(line, "…") || strings.Contains(line, " for ") {
+			continue
+		}
+		first := []rune(line)[0]
+		if (first > 0x2600 && first < 0x2800) || first == 0x00B7 {
+			return true
+		}
+	}
+	return false
+}
+
+// questionMetaLine returns true for lines that are UI chrome or user input rather than
+// Claude's output: separators, timing (✻), recaps (※), status bar (🧬), accept-edits
+// hint (⏵), prompt (❯), tool-output indicator (▎), and user-input continuation lines
+// (indented with 2+ spaces, e.g. the second line of a multi-line ❯ block).
+func questionMetaLine(line string) bool {
+	if strings.HasPrefix(line, "  ") {
+		return true
+	}
+	for _, prefix := range []string{"─", "✻", "※", "🧬", "⏵", "❯", "▎"} {
+		if strings.HasPrefix(line, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasQuestionPatterns detects when Claude has asked a question and is waiting at the
+// input prompt (❯). Claude Code does not use (y/n) suffixes for conversational questions;
+// it ends the message with "?" and falls idle.
+func hasQuestionPatterns(content string) bool {
+	clean := stripANSI(content)
+	lines := strings.Split(clean, "\n")
+
+	// The empty ❯ input cursor must be visible — Claude is idle and waiting for input.
+	// Historical user-input lines look like "❯ some text" (non-empty after ❯); skip those.
+	hasPrompt := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "❯" {
+			hasPrompt = true
+			break
+		}
+	}
+	if !hasPrompt {
+		return false
+	}
+
+	// At least one non-meta line in this window must end with "?".
+	// Pass the original line to questionMetaLine so the leading-spaces check
+	// (user-input continuation) works before TrimSpace strips them.
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || questionMetaLine(line) {
+			continue
+		}
+		if strings.HasSuffix(trimmed, "?") {
+			return true
+		}
+	}
+	return false
+}
+
+// parseQuestionRequest extracts the question text from ANSI-stripped pane content.
+func parseQuestionRequest(content string) *QuestionRequest {
+	clean := stripANSI(content)
+	lines := strings.Split(clean, "\n")
+	// Walk backwards to find the most-recent line ending with "?".
+	for i := len(lines) - 1; i >= 0; i-- {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "" || questionMetaLine(trimmed) {
+			continue
+		}
+		if strings.HasSuffix(trimmed, "?") {
+			return &QuestionRequest{Text: trimmed, RawText: content}
+		}
+	}
+	return &QuestionRequest{RawText: content}
 }
 
 // DetectSession captures pane content and determines the Claude Code status.
@@ -284,14 +416,18 @@ func DetectSession(pane tmux.Pane, procs []processInfo) Session {
 	}
 
 	// Claude is running — determine its state from content.
-	// Permission check uses only the last 10 lines: active prompts are always
-	// at the bottom; older handled prompts must not trigger false positives.
-	tail := tailLines(content, 10)
-	if hasPermissionPatterns(tail) {
+	// Permission dialogs are ~10 lines tall; tail12 gives a small buffer without
+	// catching previously-answered dialogs still in the scrollback.
+	tail12 := tailLines(content, 12)
+	tail30 := tailLines(content, 30)
+	if hasPermissionPatterns(tail12) {
 		session.Status = StatusPermission
 		session.Request = parsePermissionRequest(content)
 	} else if hasWorkingPatterns(content) {
 		session.Status = StatusWorking
+	} else if hasQuestionPatterns(tail30) {
+		session.Status = StatusQuestion
+		session.Question = parseQuestionRequest(tail30)
 	} else {
 		session.Status = StatusIdle
 	}
@@ -309,20 +445,10 @@ func Refresh(panes []tmux.Pane) []Session {
 		sessions = append(sessions, DetectSession(pane, procs))
 	}
 
-	// Only include panes where Claude is actually running, sorted by urgency.
+	// Only include panes where Claude is actually running, preserving pane order.
 	sorted := make([]Session, 0, len(sessions))
 	for _, s := range sessions {
-		if s.Status == StatusPermission {
-			sorted = append(sorted, s)
-		}
-	}
-	for _, s := range sessions {
-		if s.Status == StatusWorking {
-			sorted = append(sorted, s)
-		}
-	}
-	for _, s := range sessions {
-		if s.Status == StatusIdle {
+		if s.Status != StatusNoClaud && s.Status != StatusUnknown {
 			sorted = append(sorted, s)
 		}
 	}
