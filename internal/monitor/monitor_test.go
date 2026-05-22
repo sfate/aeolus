@@ -146,6 +146,36 @@ func TestHasPermissionPatterns(t *testing.T) {
 			t.Error("expected false for box without y/n")
 		}
 	})
+
+	t.Run("ANSI-split Esc to cancel matches", func(t *testing.T) {
+		// Claude Code individually colors each word; the phrase is not contiguous in raw output.
+		ansiSplit := "\x1b[38;5;246mEsc\x1b[39m \x1b[38;5;246mto\x1b[39m \x1b[38;5;246mcancel\x1b[39m"
+		if !hasPermissionPatterns(ansiSplit) {
+			t.Error("expected true: ANSI-split 'Esc to cancel' should match after stripping")
+		}
+	})
+
+	t.Run("edit approval dialog", func(t *testing.T) {
+		editDialog := "Do you want to make this edit to go.mod?\n❯ 1. Yes\n  2. No\nEsc to cancel"
+		if !hasPermissionPatterns(editDialog) {
+			t.Error("expected true for edit approval dialog")
+		}
+	})
+
+	t.Run("quoted phrase in prose does not match", func(t *testing.T) {
+		// Claude's own explanation text can contain these phrases quoted — must not trigger.
+		prose := `Stripping ANSI first fixes it. Also added "Do you want to make this edit" to cover the edit-approval variant. So "Esc to cancel" was never found.`
+		if hasPermissionPatterns(prose) {
+			t.Error("expected false: quoted phrases in prose should not match")
+		}
+	})
+
+	t.Run("quoted phrase in code diff does not match", func(t *testing.T) {
+		diff := "+ \t\"Esc to cancel\",\n+ \t\"Do you want to make this edit\","
+		if hasPermissionPatterns(diff) {
+			t.Error("expected false: string literals in code diff should not match")
+		}
+	})
 }
 
 // ---- hasWorkingPatterns ------------------------------------------------------

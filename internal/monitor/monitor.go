@@ -225,35 +225,51 @@ func parsePermissionRequest(content string) *PermissionRequest {
 }
 
 // hasPermissionPatterns checks if the content contains permission request indicators.
-// Must be called on the tail of the pane only (last ~10 lines) to avoid false
+// Must be called on the tail of the pane only (last ~12 lines) to avoid false
 // positives from already-answered prompts in the scroll history.
+// ANSI is stripped first: Claude Code individually colors words like "Esc", "to",
+// "cancel" so the joined phrase is not contiguous in raw escape-laden output.
 func hasPermissionPatterns(content string) bool {
+	clean := stripANSI(content)
+
 	// Most reliable: box + y/n together.
-	hasBox := strings.Contains(content, "╭") && strings.Contains(content, "╰")
-	hasYN := strings.Contains(content, "(y/n)") ||
-		strings.Contains(content, "(Y/n)") ||
-		strings.Contains(content, "(y/N)") ||
-		strings.Contains(content, "Allow? ")
+	hasBox := strings.Contains(clean, "╭") && strings.Contains(clean, "╰")
+	hasYN := strings.Contains(clean, "(y/n)") ||
+		strings.Contains(clean, "(Y/n)") ||
+		strings.Contains(clean, "(y/N)") ||
+		strings.Contains(clean, "Allow? ")
 	if hasBox && hasYN {
 		return true
 	}
 
 	// Interactive selector UI (no y/n prompt, uses arrow keys).
-	if strings.Contains(content, "Allow once") || strings.Contains(content, "Allow for this session") {
+	if strings.Contains(clean, "Allow once") || strings.Contains(clean, "Allow for this session") {
 		return true
 	}
 
-	// Explicit patterns that are unambiguous on their own.
-	// "Esc to cancel" appears in the newer numbered-selection permission UI
-	// ("Do you want to proceed? / ❯ 1. Yes / 2. No / Esc to cancel").
+	// Explicit patterns unambiguous on their own.
+	// "Esc to cancel" appears in the numbered-selection UI for both tool-use
+	// and edit-approval dialogs ("Do you want to make this edit?  1. Yes  Esc to cancel").
+	// These phrases can also appear quoted in Claude's prose or code diffs, so we
+	// only match lines where the phrase is NOT preceded by a quote character — i.e.,
+	// it's UI text, not a string literal or inline citation.
 	explicit := []string{
 		"Allow? (y/n)",
 		"Do you want to proceed",
+		"Do you want to make this edit",
 		"Allow this action",
 		"Esc to cancel",
 	}
-	for _, p := range explicit {
-		if strings.Contains(content, p) {
+	for _, line := range strings.Split(clean, "\n") {
+		for _, p := range explicit {
+			idx := strings.Index(line, p)
+			if idx < 0 {
+				continue
+			}
+			// Reject if the phrase is preceded by a quote — it's inside a string.
+			if strings.ContainsAny(line[:idx], `"'`) {
+				continue
+			}
 			return true
 		}
 	}
