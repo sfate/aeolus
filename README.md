@@ -38,3 +38,7 @@ make run     # go run .
 - tmux
 - go v1.26.3 or higher
 - One or more `claude` sessions running inside tmux panes
+
+## License
+
+[MIT](LICENSE)
