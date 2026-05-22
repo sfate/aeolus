@@ -200,44 +200,34 @@ func parsePermissionRequest(content string) *PermissionRequest {
 }
 
 // hasPermissionPatterns checks if the content contains permission request indicators.
+// Must be called on the tail of the pane only (last ~10 lines) to avoid false
+// positives from already-answered prompts in the scroll history.
 func hasPermissionPatterns(content string) bool {
-	patterns := []string{
-		"Allow? (y/n)",
-		"(Y/n)",
-		"(y/N)",
-		"Do you want to",
-		"Allow this",
-		"allow this",
-		"Deny",
-		"Allow",
-		// Claude Code permission box patterns
-		"╭─",
-		"Allow once",
-		"Allow for this session",
-		"Deny once",
-	}
-
-	// Check that at least permission-related patterns appear together
+	// Most reliable: box + y/n together.
 	hasBox := strings.Contains(content, "╭") && strings.Contains(content, "╰")
 	hasYN := strings.Contains(content, "(y/n)") ||
 		strings.Contains(content, "(Y/n)") ||
 		strings.Contains(content, "(y/N)") ||
 		strings.Contains(content, "Allow? ")
-
 	if hasBox && hasYN {
 		return true
 	}
 
-	// Check for explicit patterns
-	for _, p := range patterns {
+	// Interactive selector UI (no y/n prompt, uses arrow keys).
+	if strings.Contains(content, "Allow once") || strings.Contains(content, "Allow for this session") {
+		return true
+	}
+
+	// Explicit combined patterns that are unambiguous on their own.
+	explicit := []string{
+		"Allow? (y/n)",
+		"Do you want to proceed",
+		"Allow this action",
+	}
+	for _, p := range explicit {
 		if strings.Contains(content, p) {
 			return true
 		}
-	}
-
-	// Additional check: look for the characteristic permission UI
-	if strings.Contains(content, "Allow once") || strings.Contains(content, "Allow for this session") {
-		return true
 	}
 
 	return false
