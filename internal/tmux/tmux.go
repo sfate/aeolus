@@ -75,7 +75,8 @@ func ListAllPanes() ([]Pane, error) {
 // CapturePane returns the last N lines of content from a tmux pane.
 func CapturePane(paneID string, lastNLines int) (string, error) {
 	startLine := fmt.Sprintf("-%d", lastNLines)
-	cmd := exec.Command("tmux", "capture-pane", "-t", paneID, "-p", "-S", startLine)
+	// -e preserves ANSI escape sequences (colors, bold, etc.)
+	cmd := exec.Command("tmux", "capture-pane", "-t", paneID, "-p", "-e", "-S", startLine)
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to capture pane %s: %w", paneID, err)

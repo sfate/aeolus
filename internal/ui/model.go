@@ -123,6 +123,8 @@ type Model struct {
 // NewModel creates a new Model with sensible defaults.
 func NewModel() Model {
 	vp := viewport.New(80, 20)
+	// Disable lipgloss word-wrap so raw ANSI escape sequences pass through intact.
+	vp.Style = lipgloss.NewStyle()
 	return Model{
 		viewport: vp,
 	}
