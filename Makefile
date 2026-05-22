@@ -2,12 +2,15 @@
 
 TEST_DIR ?= ./...
 TEST_CASE ?= ^.+$
+BINARY_NAME ?= aeolus
+BUILD_OUTPUT ?= bin/$(BINARY_NAME)
 
 run:
 	go run .
 
 build:
-	go build -o aeolus .
+	mkdir -p $(dir $(BUILD_OUTPUT))
+	go build -mod=readonly -o $(BUILD_OUTPUT) .
 
 lint:
 	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0 run --allow-parallel-runners
