@@ -54,10 +54,10 @@ var (
 				Bold(true).
 				Foreground(colorPermission)
 
-	stylePermBox = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(colorPermission).
-			Padding(1, 2)
+	// stylePermBox = lipgloss.NewStyle().
+	// 		Border(lipgloss.RoundedBorder()).
+	// 		BorderForeground(colorPermission).
+	// 		Padding(1, 2)
 
 	stylePermBorder = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).

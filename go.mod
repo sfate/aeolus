@@ -1,6 +1,6 @@
 module github.com/blackholesun/aeolus
 
-go 1.22
+go 1.26.3
 
 require (
 	github.com/charmbracelet/bubbles v0.20.0
