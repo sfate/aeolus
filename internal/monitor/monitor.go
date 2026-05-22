@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blackholesun/aeolus/internal/tmux"
+	"github.com/sfate/aeolus/internal/tmux"
 )
 
 // reANSI matches ANSI/VT escape sequences including SGR colors and OSC8 hyperlinks.

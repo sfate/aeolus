@@ -9,8 +9,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/blackholesun/aeolus/internal/monitor"
-	"github.com/blackholesun/aeolus/internal/tmux"
+	"github.com/sfate/aeolus/internal/monitor"
+	"github.com/sfate/aeolus/internal/tmux"
 )
 
 // ---- Messages ----------------------------------------------------------------
