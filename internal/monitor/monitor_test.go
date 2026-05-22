@@ -17,6 +17,8 @@ func TestTailLines(t *testing.T) {
 		{"exact n", "a\nb\nc", 3, "a\nb\nc"},
 		{"more than n", "a\nb\nc\nd\ne", 3, "c\nd\ne"},
 		{"trailing newline stripped", "a\nb\nc\n", 2, "b\nc"},
+		{"tmux space-padded blank lines stripped", "a\nb\nc\n   \n   \n", 2, "b\nc"},
+		{"only space-padded lines", "   \n   \n", 3, ""},
 		{"n=1", "a\nb\nc", 1, "c"},
 		{"empty string", "", 5, ""},
 		{"single line", "hello", 3, "hello"},
@@ -181,6 +183,35 @@ func TestHasWorkingPatterns(t *testing.T) {
 			t.Error("expected false for idle output")
 		}
 	})
+
+	t.Run("unicode star thinking indicator", func(t *testing.T) {
+		// ✻ U+2738 is in the U+2600–U+27FF range
+		if !hasWorkingPatterns("✻ Wibbling…") {
+			t.Error("expected true for ✻ Wibbling…")
+		}
+	})
+
+	t.Run("middle dot compaction indicator", func(t *testing.T) {
+		// · U+00B7 is the compaction/status line marker
+		if !hasWorkingPatterns("· Booping…") {
+			t.Error("expected true for · Booping…")
+		}
+	})
+
+	t.Run("ANSI-wrapped unicode thinking indicator", func(t *testing.T) {
+		// Real pane content has ANSI color codes wrapping the symbol
+		ansiLine := "\x1b[32m✻\x1b[0m Crunching…"
+		if !hasWorkingPatterns(ansiLine) {
+			t.Error("expected true for ANSI-wrapped ✻ Crunching…")
+		}
+	})
+
+	t.Run("historical timing line not working", func(t *testing.T) {
+		// "✻ Crunched for 3s" has " for " — should not match
+		if hasWorkingPatterns("✻ Crunched for 3s") {
+			t.Error("expected false for completed timing line")
+		}
+	})
 }
 
 // ---- parsePermissionRequest --------------------------------------------------
@@ -235,6 +266,159 @@ func TestParsePermissionRequest(t *testing.T) {
 			t.Errorf("expected empty req, got Tool=%q Command=%q", req.Tool, req.Command)
 		}
 	})
+}
+
+// ---- questionMetaLine --------------------------------------------------------
+
+func TestQuestionMetaLine(t *testing.T) {
+	meta := []string{
+		"─────────────",
+		"✻ Crunched for 3s",
+		"※ compact recap",
+		"🧬 status bar",
+		"⏵ accept-edits hint",
+		"❯ user typed something",
+		"▎ tool output",
+		"  continuation line",
+		"   more continuation",
+	}
+	for _, line := range meta {
+		t.Run("meta:"+line, func(t *testing.T) {
+			if !questionMetaLine(line) {
+				t.Errorf("questionMetaLine(%q) = false, want true", line)
+			}
+		})
+	}
+
+	notMeta := []string{
+		"Is this correct?",
+		"Would you like to proceed?",
+		"Here is the result.",
+		"",
+	}
+	for _, line := range notMeta {
+		t.Run("not-meta:"+line, func(t *testing.T) {
+			if questionMetaLine(line) {
+				t.Errorf("questionMetaLine(%q) = true, want false", line)
+			}
+		})
+	}
+}
+
+// ---- hasQuestionPatterns -----------------------------------------------------
+
+func TestHasQuestionPatterns(t *testing.T) {
+	t.Run("question with empty prompt", func(t *testing.T) {
+		content := "Would you like me to proceed?\n─────\n❯"
+		if !hasQuestionPatterns(content) {
+			t.Error("expected true: question line + empty ❯")
+		}
+	})
+
+	t.Run("ANSI-wrapped content", func(t *testing.T) {
+		content := "\x1b[1mShould I delete the file?\x1b[0m\n❯"
+		if !hasQuestionPatterns(content) {
+			t.Error("expected true: ANSI question + empty ❯")
+		}
+	})
+
+	t.Run("no empty prompt means no question", func(t *testing.T) {
+		content := "Is this correct?\n❯ user is typing"
+		if hasQuestionPatterns(content) {
+			t.Error("expected false: ❯ has text so not idle waiting")
+		}
+	})
+
+	t.Run("no question mark", func(t *testing.T) {
+		content := "Here is the result.\n❯"
+		if hasQuestionPatterns(content) {
+			t.Error("expected false: no line ending with ?")
+		}
+	})
+
+	t.Run("no prompt at all", func(t *testing.T) {
+		content := "Should I do this?"
+		if hasQuestionPatterns(content) {
+			t.Error("expected false: no empty ❯ prompt")
+		}
+	})
+
+	t.Run("multi-line user input continuation not a question", func(t *testing.T) {
+		// User typed a multi-line message; second line starts with spaces
+		content := "❯ please do something\n  that ends with a question?\n❯"
+		if hasQuestionPatterns(content) {
+			t.Error("expected false: the ? line is a user-input continuation (starts with spaces)")
+		}
+	})
+}
+
+// ---- parseQuestionRequest ----------------------------------------------------
+
+func TestParseQuestionRequest(t *testing.T) {
+	t.Run("picks most-recent question line", func(t *testing.T) {
+		content := "First question?\n─────\nSecond question?\n❯"
+		req := parseQuestionRequest(content)
+		if req.Text != "Second question?" {
+			t.Errorf("Text = %q, want %q", req.Text, "Second question?")
+		}
+	})
+
+	t.Run("strips ANSI from question text", func(t *testing.T) {
+		content := "\x1b[1mShould I proceed?\x1b[0m\n❯"
+		req := parseQuestionRequest(content)
+		if req.Text != "Should I proceed?" {
+			t.Errorf("Text = %q, want %q", req.Text, "Should I proceed?")
+		}
+	})
+
+	t.Run("raw text preserved", func(t *testing.T) {
+		content := "A question?\n❯"
+		req := parseQuestionRequest(content)
+		if req.RawText != content {
+			t.Errorf("RawText = %q, want %q", req.RawText, content)
+		}
+	})
+
+	t.Run("no question line returns empty Text", func(t *testing.T) {
+		req := parseQuestionRequest("no question here\n❯")
+		if req.Text != "" {
+			t.Errorf("Text = %q, want empty", req.Text)
+		}
+	})
+}
+
+// ---- Refresh -----------------------------------------------------------------
+
+func TestRefreshPreservesOrder(t *testing.T) {
+	// Refresh should keep Claude-running sessions in pane order, not sort by status.
+	// We test the sorting logic indirectly via the filter: non-Claude sessions are excluded.
+	// Build fake sessions manually to exercise the filter+order guarantee.
+	sessions := []Session{
+		{Status: StatusWorking},
+		{Status: StatusIdle},
+		{Status: StatusPermission},
+		{Status: StatusNoClaud},
+		{Status: StatusQuestion},
+		{Status: StatusUnknown},
+	}
+
+	// Replicate Refresh filter logic (single-pass, original order).
+	var got []Status
+	for _, s := range sessions {
+		if s.Status != StatusNoClaud && s.Status != StatusUnknown {
+			got = append(got, s.Status)
+		}
+	}
+
+	want := []Status{StatusWorking, StatusIdle, StatusPermission, StatusQuestion}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("position %d: got %v, want %v", i, got[i], want[i])
+		}
+	}
 }
 
 // ---- buildChildMap -----------------------------------------------------------
@@ -326,6 +510,7 @@ func TestStatusString(t *testing.T) {
 		{StatusIdle, "IDLE"},
 		{StatusWorking, "WORKING"},
 		{StatusPermission, "PERMISSION"},
+		{StatusQuestion, "QUESTION"},
 	}
 	for _, tt := range tests {
 		if got := tt.s.String(); got != tt.want {

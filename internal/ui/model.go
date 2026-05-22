@@ -29,6 +29,8 @@ var (
 	colorHeaderBg   = lipgloss.Color("#1A3A5C")
 	colorPermission = lipgloss.Color("#FFB347")
 	colorPermBg     = lipgloss.Color("#3D2E00")
+	colorQuestion   = lipgloss.Color("#C792EA")
+	colorQuestionBg = lipgloss.Color("#2D1A3D")
 	colorWorking    = lipgloss.Color("#00CFCF")
 	colorIdle       = lipgloss.Color("#5AF78E")
 	colorNoClaud    = lipgloss.Color("#666666")
@@ -62,6 +64,14 @@ var (
 	stylePermBorder = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(colorPermission)
+
+	styleQuestionBorder = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(colorQuestion)
+
+	styleQuestionWarning = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(colorQuestion)
 )
 
 // statusStyle returns a lipgloss style for the given status.
@@ -69,6 +79,8 @@ func statusStyle(s monitor.Status) lipgloss.Style {
 	switch s {
 	case monitor.StatusPermission:
 		return lipgloss.NewStyle().Bold(true).Foreground(colorPermission)
+	case monitor.StatusQuestion:
+		return lipgloss.NewStyle().Bold(true).Foreground(colorQuestion)
 	case monitor.StatusWorking:
 		return lipgloss.NewStyle().Foreground(colorWorking)
 	case monitor.StatusIdle:
@@ -85,6 +97,8 @@ func statusIcon(s monitor.Status) string {
 	switch s {
 	case monitor.StatusPermission:
 		return "⚠ "
+	case monitor.StatusQuestion:
+		return "? "
 	case monitor.StatusWorking:
 		return "● "
 	case monitor.StatusIdle:
@@ -206,21 +220,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "y":
 			if m.cursor < len(m.sessions) {
 				s := m.sessions[m.cursor]
-				if s.Status == monitor.StatusPermission {
+				switch s.Status {
+				case monitor.StatusPermission:
 					_ = tmux.SendKeys(s.Pane.PaneID, "y")
-					// Optimistic update
 					m.sessions[m.cursor].Status = monitor.StatusWorking
 					m.sessions[m.cursor].Request = nil
+					m.updateViewport()
+				case monitor.StatusQuestion:
+					_ = tmux.SendKeys(s.Pane.PaneID, "y")
+					m.sessions[m.cursor].Status = monitor.StatusWorking
+					m.sessions[m.cursor].Question = nil
 					m.updateViewport()
 				}
 			}
 		case "n":
 			if m.cursor < len(m.sessions) {
 				s := m.sessions[m.cursor]
-				if s.Status == monitor.StatusPermission {
+				switch s.Status {
+				case monitor.StatusPermission:
 					_ = tmux.SendKeys(s.Pane.PaneID, "n")
 					m.sessions[m.cursor].Status = monitor.StatusIdle
 					m.sessions[m.cursor].Request = nil
+					m.updateViewport()
+				case monitor.StatusQuestion:
+					_ = tmux.SendKeys(s.Pane.PaneID, "n")
+					m.sessions[m.cursor].Status = monitor.StatusIdle
+					m.sessions[m.cursor].Question = nil
 					m.updateViewport()
 				}
 			}
@@ -271,16 +296,26 @@ func contentPaneHeight(total int) int {
 // - others: bottom (so the most recent terminal output is visible)
 func (m *Model) updateViewport() {
 	m.viewport.SetContent(m.contentPaneText())
-	if m.cursor < len(m.sessions) && m.sessions[m.cursor].Status == monitor.StatusPermission {
+	s := monitor.Status(-1)
+	if m.cursor < len(m.sessions) {
+		s = m.sessions[m.cursor].Status
+	}
+	if s == monitor.StatusPermission || s == monitor.StatusQuestion {
 		m.viewport.GotoTop()
 	} else {
 		m.viewport.GotoBottom()
 	}
 }
 
-// tailLines returns the last n lines of text.
+// tailLines returns the last n non-blank lines of text.
+// tmux pads every line to terminal width with spaces, so trailing "blank"
+// rows are actually space-filled strings. Strip them before taking the tail
+// so GotoBottom() lands on actual content, not blank terminal padding.
 func tailLines(text string, n int) string {
 	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
 	if len(lines) > n {
 		lines = lines[len(lines)-n:]
 	}
@@ -322,8 +357,26 @@ func (m *Model) contentPaneText() string {
 		return sb.String()
 	}
 
+	if s.Status == monitor.StatusQuestion {
+		var sb strings.Builder
+		sb.WriteString(styleQuestionWarning.Render("?  QUESTION") + "\n")
+		sb.WriteString(strings.Repeat("─", 36) + "\n")
+		if s.Question != nil && s.Question.Text != "" {
+			sb.WriteString(fmt.Sprintf("  %s\n", s.Question.Text))
+		}
+		sb.WriteString(strings.Repeat("─", 36) + "\n")
+		sb.WriteString(
+			lipgloss.NewStyle().Bold(true).Foreground(colorIdle).Render("  [y] Yes") +
+				"     " +
+				lipgloss.NewStyle().Bold(true).Foreground(colorError).Render("[n] No") + "\n",
+		)
+		sb.WriteString("\n")
+		sb.WriteString(lipgloss.NewStyle().Foreground(colorHelp).Render("─── context ───") + "\n")
+		sb.WriteString(tailLines(s.Content, 15))
+		return sb.String()
+	}
+
 	// For working/idle: show tail so newest output is at the bottom.
-	// Viewport will be scrolled to bottom after this.
 	return tailLines(s.Content, 50)
 }
 
@@ -377,14 +430,17 @@ func (m Model) View() string {
 		Height(ph).
 		Render(listContent)
 
-	// Content pane
-	m.viewport.Width = cw
-	m.viewport.Height = ph
-	m.updateViewport()
-
+	// Content pane — dimensions/content are managed in Update(); View() just renders.
 	var contentBorderStyle lipgloss.Style
-	if m.cursor < len(m.sessions) && m.sessions[m.cursor].Status == monitor.StatusPermission {
-		contentBorderStyle = stylePermBorder
+	if m.cursor < len(m.sessions) {
+		switch m.sessions[m.cursor].Status {
+		case monitor.StatusPermission:
+			contentBorderStyle = stylePermBorder
+		case monitor.StatusQuestion:
+			contentBorderStyle = styleQuestionBorder
+		default:
+			contentBorderStyle = styleBorder
+		}
 	} else {
 		contentBorderStyle = styleBorder
 	}
@@ -447,19 +503,15 @@ func (m Model) renderSessionList(width, height int) string {
 		row := fmt.Sprintf("%s%s  %s", icon, name, statusColored)
 
 		if selected && s.Status == monitor.StatusPermission {
-			row = lipgloss.NewStyle().
-				Background(colorPermBg).
-				Bold(true).
-				Render(row)
+			row = lipgloss.NewStyle().Background(colorPermBg).Bold(true).Render(row)
+		} else if selected && s.Status == monitor.StatusQuestion {
+			row = lipgloss.NewStyle().Background(colorQuestionBg).Bold(true).Render(row)
 		} else if selected {
-			row = lipgloss.NewStyle().
-				Background(colorSelected).
-				Bold(true).
-				Render(row)
+			row = lipgloss.NewStyle().Background(colorSelected).Bold(true).Render(row)
 		} else if s.Status == monitor.StatusPermission {
-			row = lipgloss.NewStyle().
-				Background(colorPermBg).
-				Render(row)
+			row = lipgloss.NewStyle().Background(colorPermBg).Render(row)
+		} else if s.Status == monitor.StatusQuestion {
+			row = lipgloss.NewStyle().Background(colorQuestionBg).Render(row)
 		}
 
 		// Cursor arrow
@@ -476,6 +528,6 @@ func (m Model) renderSessionList(width, height int) string {
 // helpBar renders the bottom keybinding help.
 func helpBar() string {
 	return styleHelp.Render(
-		"[↑↓/jk] Navigate  [y] Approve  [n] Deny  [r] Refresh  [q] Quit",
+		"[↑↓/jk] Navigate  [y] Approve/Yes  [n] Deny/No  [r] Refresh  [q] Quit",
 	)
 }
