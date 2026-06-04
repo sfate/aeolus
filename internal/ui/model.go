@@ -22,6 +22,11 @@ type refreshMsg struct {
 	err      error
 }
 
+type killPaneMsg struct {
+	paneID string
+	err    error
+}
+
 // ---- Styles ------------------------------------------------------------------
 
 var (
@@ -132,6 +137,7 @@ type Model struct {
 	quitting    bool
 	viewport    viewport.Model
 	tmuxMissing bool
+	confirmKill string
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -169,6 +175,15 @@ func doRefresh() tea.Cmd {
 	}
 }
 
+func doKillPane(paneID string) tea.Cmd {
+	return func() tea.Msg {
+		return killPaneMsg{
+			paneID: paneID,
+			err:    tmux.KillPane(paneID),
+		}
+	}
+}
+
 // Update handles incoming messages and user input.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -201,20 +216,58 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor >= len(m.sessions) && len(m.sessions) > 0 {
 				m.cursor = len(m.sessions) - 1
 			}
+			if m.confirmKill != "" && !hasPane(m.sessions, m.confirmKill) {
+				m.confirmKill = ""
+			}
 			m.updateViewport()
 		}
 		return m, nil
 
+	case killPaneMsg:
+		if msg.err != nil {
+			m.err = msg.err
+			m.confirmKill = ""
+			m.updateViewport()
+			return m, nil
+		}
+		m.confirmKill = ""
+		m.sessions = removePane(m.sessions, msg.paneID)
+		if m.cursor >= len(m.sessions) && len(m.sessions) > 0 {
+			m.cursor = len(m.sessions) - 1
+		}
+		m.updateViewport()
+		return m, doRefresh()
+
 	case tea.KeyMsg:
+		if m.confirmKill != "" {
+			switch msg.String() {
+			case "y":
+				paneID := m.confirmKill
+				m.confirmKill = ""
+				m.updateViewport()
+				return m, doKillPane(paneID)
+			case "n", "esc":
+				m.confirmKill = ""
+				m.updateViewport()
+				return m, nil
+			case "q", "ctrl+c":
+				m.quitting = true
+				return m, tea.Quit
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
+				m.confirmKill = ""
 				m.updateViewport()
 			}
 		case "down", "j":
 			if m.cursor < len(m.sessions)-1 {
 				m.cursor++
+				m.confirmKill = ""
 				m.updateViewport()
 			}
 		case "y":
@@ -266,6 +319,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.err = err
 				}
 			}
+		case "x":
+			if m.cursor < len(m.sessions) {
+				m.confirmKill = m.sessions[m.cursor].Pane.PaneID
+				m.updateViewport()
+			}
 		case "r":
 			return m, doRefresh()
 		case "q", "ctrl+c":
@@ -278,6 +336,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.viewport, cmd = m.viewport.Update(msg)
 	return m, cmd
+}
+
+func hasPane(sessions []monitor.Session, paneID string) bool {
+	for _, s := range sessions {
+		if s.Pane.PaneID == paneID {
+			return true
+		}
+	}
+	return false
+}
+
+func removePane(sessions []monitor.Session, paneID string) []monitor.Session {
+	filtered := sessions[:0]
+	for _, s := range sessions {
+		if s.Pane.PaneID != paneID {
+			filtered = append(filtered, s)
+		}
+	}
+	return filtered
 }
 
 // ---- Layout helpers ----------------------------------------------------------
@@ -347,6 +424,25 @@ func (m *Model) contentPaneText() string {
 		return ""
 	}
 	s := m.sessions[m.cursor]
+
+	if m.confirmKill == s.Pane.PaneID {
+		var sb strings.Builder
+		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(colorError).Render("KILL PANE?") + "\n")
+		sb.WriteString(strings.Repeat("─", 36) + "\n")
+		sb.WriteString(fmt.Sprintf("  Pane:    %s\n", s.Pane.PaneID))
+		sb.WriteString(fmt.Sprintf("  Session: %s\n", s.Pane.SessionName))
+		sb.WriteString(fmt.Sprintf("  Window:  %s\n", s.Pane.WindowName))
+		sb.WriteString(strings.Repeat("─", 36) + "\n")
+		sb.WriteString(
+			lipgloss.NewStyle().Bold(true).Foreground(colorError).Render("  [y] Kill pane") +
+				"     " +
+				lipgloss.NewStyle().Bold(true).Foreground(colorIdle).Render("[n/esc] Cancel") + "\n",
+		)
+		sb.WriteString("\n")
+		sb.WriteString(lipgloss.NewStyle().Foreground(colorHelp).Render("─── context ───") + "\n")
+		sb.WriteString(tailLines(s.Content, 15))
+		return sb.String()
+	}
 
 	if s.Status == monitor.StatusPermission {
 		var sb strings.Builder
@@ -452,13 +548,20 @@ func (m Model) View() string {
 	// Content pane — dimensions/content are managed in Update(); View() just renders.
 	var contentBorderStyle lipgloss.Style
 	if m.cursor < len(m.sessions) {
-		switch m.sessions[m.cursor].Status {
-		case monitor.StatusPermission:
-			contentBorderStyle = stylePermBorder
-		case monitor.StatusQuestion:
-			contentBorderStyle = styleQuestionBorder
+		switch m.confirmKill {
+		case m.sessions[m.cursor].Pane.PaneID:
+			contentBorderStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(colorError)
 		default:
-			contentBorderStyle = styleBorder
+			switch m.sessions[m.cursor].Status {
+			case monitor.StatusPermission:
+				contentBorderStyle = stylePermBorder
+			case monitor.StatusQuestion:
+				contentBorderStyle = styleQuestionBorder
+			default:
+				contentBorderStyle = styleBorder
+			}
 		}
 	} else {
 		contentBorderStyle = styleBorder
@@ -547,6 +650,6 @@ func (m Model) renderSessionList(width, height int) string {
 // helpBar renders the bottom keybinding help.
 func helpBar() string {
 	return styleHelp.Render(
-		"[↑↓/jk] Navigate  [enter] Go to pane  [y] Approve/Yes  [a] Approve all  [n] Deny/No  [r] Refresh  [q] Quit",
+		"[↑↓/jk] Navigate  [enter] Go to pane  [y] Approve/Yes  [a] Approve all  [n] Deny/No  [x] Kill pane  [r] Refresh  [q] Quit",
 	)
 }

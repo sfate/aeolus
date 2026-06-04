@@ -32,6 +32,7 @@ make run     # go run .
 | `y` | Approve permission request |
 | `a` | Approve permission request for the session |
 | `n` | Deny permission request |
+| `x` | Kill selected pane after confirmation |
 | `r` | Force refresh |
 | `q` | Quit |
 
