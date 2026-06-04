@@ -286,6 +286,41 @@ func hasPermissionPatterns(content string) bool {
 	return false
 }
 
+// hasActionGateQuestionPatterns detects conversational approval gates such as
+// "Want me to go ahead..." that Claude asks before taking the next action.
+func hasActionGateQuestionPatterns(content string) bool {
+	clean := stripANSI(content)
+	for _, line := range strings.Split(clean, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || !strings.HasSuffix(trimmed, "?") {
+			continue
+		}
+		for _, prefix := range []string{"─", "✻", "※", "🧬", "⏵", "❯", "▎"} {
+			if strings.HasPrefix(trimmed, prefix) {
+				trimmed = ""
+				break
+			}
+		}
+		if trimmed == "" {
+			continue
+		}
+		lower := strings.ToLower(trimmed)
+		hasGatePhrase := strings.Contains(lower, "want me to") ||
+			strings.Contains(lower, "would you like me to") ||
+			strings.Contains(lower, "should i") ||
+			strings.Contains(lower, "shall i")
+		hasActionPhrase := strings.Contains(lower, "go ahead") ||
+			strings.Contains(lower, "proceed") ||
+			strings.Contains(lower, "implement") ||
+			strings.Contains(lower, "make the changes") ||
+			strings.Contains(lower, "apply the changes")
+		if hasGatePhrase && hasActionPhrase {
+			return true
+		}
+	}
+	return false
+}
+
 // hasWorkingPatterns checks if the content shows Claude is actively working.
 func hasWorkingPatterns(content string) bool {
 	spinnerChars := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -387,6 +422,26 @@ func parseQuestionRequest(content string) *QuestionRequest {
 	return &QuestionRequest{RawText: content}
 }
 
+func detectClaudeStatus(content string) (Status, *PermissionRequest, *QuestionRequest) {
+	// Permission dialogs are usually ~10 lines tall; tail12 covers compact prompts,
+	// while tail30 catches newer selector UIs that include extra status/chrome lines.
+	tail12 := tailLines(content, 12)
+	tail30 := tailLines(content, 30)
+	if hasPermissionPatterns(tail12) || hasPermissionPatterns(tail30) {
+		return StatusPermission, parsePermissionRequest(content), nil
+	}
+	if hasWorkingPatterns(content) {
+		return StatusWorking, nil, nil
+	}
+	if hasActionGateQuestionPatterns(tail30) {
+		return StatusPermission, parsePermissionRequest(content), nil
+	}
+	if hasQuestionPatterns(tail30) {
+		return StatusQuestion, nil, parseQuestionRequest(tail30)
+	}
+	return StatusIdle, nil, nil
+}
+
 // DetectSession captures pane content and determines the Claude Code status.
 func DetectSession(pane tmux.Pane, procs []processInfo) Session {
 	session := Session{
@@ -424,22 +479,7 @@ func DetectSession(pane tmux.Pane, procs []processInfo) Session {
 		return session
 	}
 
-	// Claude is running — determine its state from content.
-	// Permission dialogs are usually ~10 lines tall; tail12 covers compact prompts,
-	// while tail30 catches newer selector UIs that include extra status/chrome lines.
-	tail12 := tailLines(content, 12)
-	tail30 := tailLines(content, 30)
-	if hasPermissionPatterns(tail12) || hasPermissionPatterns(tail30) {
-		session.Status = StatusPermission
-		session.Request = parsePermissionRequest(content)
-	} else if hasWorkingPatterns(content) {
-		session.Status = StatusWorking
-	} else if hasQuestionPatterns(tail30) {
-		session.Status = StatusQuestion
-		session.Question = parseQuestionRequest(tail30)
-	} else {
-		session.Status = StatusIdle
-	}
+	session.Status, session.Request, session.Question = detectClaudeStatus(content)
 
 	return session
 }
