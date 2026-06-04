@@ -38,7 +38,7 @@ make run     # go run .
 ## Requirements
 
 - tmux
-- go v1.26.3 or higher
+- go v1.26.4 or higher
 - One or more `claude` sessions running inside tmux panes
 
 ## License
