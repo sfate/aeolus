@@ -28,7 +28,9 @@ make run     # go run .
 |-----|--------|
 | `j` / `↓` | Next session |
 | `k` / `↑` | Previous session |
+| `enter` | Switch tmux client to selected pane |
 | `y` | Approve permission request |
+| `a` | Approve permission request for the session |
 | `n` | Deny permission request |
 | `r` | Force refresh |
 | `q` | Quit |

@@ -67,7 +67,7 @@ type Session struct {
 	Status    Status
 	Request   *PermissionRequest
 	Question  *QuestionRequest
-	Content   string    // last N lines of pane content
+	Content   string // last N lines of pane content
 	UpdatedAt time.Time
 }
 
@@ -231,6 +231,7 @@ func parsePermissionRequest(content string) *PermissionRequest {
 // "cancel" so the joined phrase is not contiguous in raw escape-laden output.
 func hasPermissionPatterns(content string) bool {
 	clean := stripANSI(content)
+	lowerClean := strings.ToLower(clean)
 
 	// Most reliable: box + y/n together.
 	hasBox := strings.Contains(clean, "╭") && strings.Contains(clean, "╰")
@@ -244,6 +245,14 @@ func hasPermissionPatterns(content string) bool {
 
 	// Interactive selector UI (no y/n prompt, uses arrow keys).
 	if strings.Contains(clean, "Allow once") || strings.Contains(clean, "Allow for this session") {
+		return true
+	}
+	if strings.Contains(lowerClean, "approve once") ||
+		strings.Contains(lowerClean, "approve for this session") ||
+		strings.Contains(lowerClean, "approve all") ||
+		strings.Contains(lowerClean, "allow all") ||
+		strings.Contains(lowerClean, "don't ask again") ||
+		strings.Contains(lowerClean, "do not ask again") {
 		return true
 	}
 
@@ -416,11 +425,11 @@ func DetectSession(pane tmux.Pane, procs []processInfo) Session {
 	}
 
 	// Claude is running — determine its state from content.
-	// Permission dialogs are ~10 lines tall; tail12 gives a small buffer without
-	// catching previously-answered dialogs still in the scrollback.
+	// Permission dialogs are usually ~10 lines tall; tail12 covers compact prompts,
+	// while tail30 catches newer selector UIs that include extra status/chrome lines.
 	tail12 := tailLines(content, 12)
 	tail30 := tailLines(content, 30)
-	if hasPermissionPatterns(tail12) {
+	if hasPermissionPatterns(tail12) || hasPermissionPatterns(tail30) {
 		session.Status = StatusPermission
 		session.Request = parsePermissionRequest(content)
 	} else if hasWorkingPatterns(content) {

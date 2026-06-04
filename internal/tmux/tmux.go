@@ -9,16 +9,16 @@ import (
 
 // Pane represents a tmux pane with its metadata.
 type Pane struct {
-	PaneID       string
-	PaneIndex    int
-	WindowIndex  int
-	SessionName  string
-	SessionID    string
+	PaneID         string
+	PaneIndex      int
+	WindowIndex    int
+	SessionName    string
+	SessionID      string
 	CurrentCommand string
-	PID          int
-	Width        int
-	Height       int
-	WindowName   string
+	PID            int
+	Width          int
+	Height         int
+	WindowName     string
 }
 
 // ListAllPanes returns all tmux panes across all sessions.
@@ -89,6 +89,31 @@ func SendKeys(paneID string, keys string) error {
 	cmd := exec.Command("tmux", "send-keys", "-t", paneID, keys, "Enter")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to send keys to pane %s: %w", paneID, err)
+	}
+	return nil
+}
+
+// SendKeySequence sends raw tmux key names to a pane.
+func SendKeySequence(paneID string, keys ...string) error {
+	args := append([]string{"send-keys", "-t", paneID}, keys...)
+	cmd := exec.Command("tmux", args...)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to send key sequence to pane %s: %w", paneID, err)
+	}
+	return nil
+}
+
+// SwitchToPane makes the pane's tmux session/window/pane active for the current client.
+func SwitchToPane(pane Pane) error {
+	if err := exec.Command("tmux", "switch-client", "-t", pane.SessionID).Run(); err != nil {
+		return fmt.Errorf("failed to switch to session %s: %w", pane.SessionID, err)
+	}
+	windowTarget := fmt.Sprintf("%s:%d", pane.SessionID, pane.WindowIndex)
+	if err := exec.Command("tmux", "select-window", "-t", windowTarget).Run(); err != nil {
+		return fmt.Errorf("failed to select window %s: %w", windowTarget, err)
+	}
+	if err := exec.Command("tmux", "select-pane", "-t", pane.PaneID).Run(); err != nil {
+		return fmt.Errorf("failed to select pane %s: %w", pane.PaneID, err)
 	}
 	return nil
 }

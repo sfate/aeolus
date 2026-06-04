@@ -42,8 +42,8 @@ func TestIsClaudeProcess(t *testing.T) {
 		"/home/user/.npm/bin/claude-code",
 		"node /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js",
 		"/opt/homebrew/bin/claude arg1 arg2",
-		"CLAUDE",        // case-insensitive
-		"/path/CLAUDE",  // case-insensitive path
+		"CLAUDE",       // case-insensitive
+		"/path/CLAUDE", // case-insensitive path
 	}
 	for _, args := range yes {
 		t.Run("match:"+args, func(t *testing.T) {
@@ -116,6 +116,27 @@ func TestHasPermissionPatterns(t *testing.T) {
 	t.Run("explicit Allow for this session", func(t *testing.T) {
 		if !hasPermissionPatterns("Allow for this session") {
 			t.Error("expected true")
+		}
+	})
+
+	t.Run("approve once or session selector", func(t *testing.T) {
+		selector := "Do you want to approve this command?\n❯ 1. Approve once\n  2. Approve for this session\n  3. Deny"
+		if !hasPermissionPatterns(selector) {
+			t.Error("expected true for approve once/session selector")
+		}
+	})
+
+	t.Run("approve all selector", func(t *testing.T) {
+		selector := "Do you want to proceed?\n❯ 1. Approve this command\n  2. Approve all\n  3. Deny"
+		if !hasPermissionPatterns(selector) {
+			t.Error("expected true for approve all selector")
+		}
+	})
+
+	t.Run("do not ask again selector", func(t *testing.T) {
+		selector := "Do you want to allow this action?\n❯ Yes\n  Yes, do not ask again\n  No"
+		if !hasPermissionPatterns(selector) {
+			t.Error("expected true for do-not-ask-again selector")
 		}
 	})
 
