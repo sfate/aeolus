@@ -117,3 +117,12 @@ func SwitchToPane(pane Pane) error {
 	}
 	return nil
 }
+
+// KillPane closes a tmux pane.
+func KillPane(paneID string) error {
+	cmd := exec.Command("tmux", "kill-pane", "-t", paneID)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to kill pane %s: %w", paneID, err)
+	}
+	return nil
+}
