@@ -42,8 +42,8 @@ func TestIsClaudeProcess(t *testing.T) {
 		"/home/user/.npm/bin/claude-code",
 		"node /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js",
 		"/opt/homebrew/bin/claude arg1 arg2",
-		"CLAUDE",        // case-insensitive
-		"/path/CLAUDE",  // case-insensitive path
+		"CLAUDE",       // case-insensitive
+		"/path/CLAUDE", // case-insensitive path
 	}
 	for _, args := range yes {
 		t.Run("match:"+args, func(t *testing.T) {
@@ -119,6 +119,27 @@ func TestHasPermissionPatterns(t *testing.T) {
 		}
 	})
 
+	t.Run("approve once or session selector", func(t *testing.T) {
+		selector := "Do you want to approve this command?\n❯ 1. Approve once\n  2. Approve for this session\n  3. Deny"
+		if !hasPermissionPatterns(selector) {
+			t.Error("expected true for approve once/session selector")
+		}
+	})
+
+	t.Run("approve all selector", func(t *testing.T) {
+		selector := "Do you want to proceed?\n❯ 1. Approve this command\n  2. Approve all\n  3. Deny"
+		if !hasPermissionPatterns(selector) {
+			t.Error("expected true for approve all selector")
+		}
+	})
+
+	t.Run("do not ask again selector", func(t *testing.T) {
+		selector := "Do you want to allow this action?\n❯ Yes\n  Yes, do not ask again\n  No"
+		if !hasPermissionPatterns(selector) {
+			t.Error("expected true for do-not-ask-again selector")
+		}
+	})
+
 	t.Run("idle claude output — no permission", func(t *testing.T) {
 		idle := "> Running tests\n> All tests passed\n> Done."
 		if hasPermissionPatterns(idle) {
@@ -174,6 +195,38 @@ func TestHasPermissionPatterns(t *testing.T) {
 		diff := "+ \t\"Esc to cancel\",\n+ \t\"Do you want to make this edit\","
 		if hasPermissionPatterns(diff) {
 			t.Error("expected false: string literals in code diff should not match")
+		}
+	})
+}
+
+// ---- hasActionGateQuestionPatterns ------------------------------------------
+
+func TestHasActionGateQuestionPatterns(t *testing.T) {
+	t.Run("want me to go ahead gate", func(t *testing.T) {
+		content := "  Want me to go ahead and implement the YAML changes for Customer A and Customer B now?"
+		if !hasActionGateQuestionPatterns(content) {
+			t.Error("expected true for go-ahead action gate")
+		}
+	})
+
+	t.Run("should i proceed gate", func(t *testing.T) {
+		content := "Should I proceed with these changes?"
+		if !hasActionGateQuestionPatterns(content) {
+			t.Error("expected true for proceed action gate")
+		}
+	})
+
+	t.Run("ordinary question is not action gate", func(t *testing.T) {
+		content := "What email/contact info do Customer A employees use for the support team?"
+		if hasActionGateQuestionPatterns(content) {
+			t.Error("expected false for ordinary question")
+		}
+	})
+
+	t.Run("user input line is ignored", func(t *testing.T) {
+		content := "❯ should I proceed with these changes?"
+		if hasActionGateQuestionPatterns(content) {
+			t.Error("expected false for user input line")
 		}
 	})
 }
@@ -413,6 +466,34 @@ func TestParseQuestionRequest(t *testing.T) {
 		req := parseQuestionRequest("no question here\n❯")
 		if req.Text != "" {
 			t.Errorf("Text = %q, want empty", req.Text)
+		}
+	})
+}
+
+// ---- detectClaudeStatus ------------------------------------------------------
+
+func TestDetectClaudeStatus(t *testing.T) {
+	t.Run("action gate without work is permission", func(t *testing.T) {
+		content := "  Want me to go ahead and implement the YAML changes now?\n\n❯"
+		status, _, _ := detectClaudeStatus(content)
+		if status != StatusPermission {
+			t.Errorf("status = %s, want %s", status, StatusPermission)
+		}
+	})
+
+	t.Run("active work after action gate is working", func(t *testing.T) {
+		content := "  Want me to go ahead and implement the YAML changes now?\n\n❯ y\n\n⏺ Let me check the codebase.\n✢ Bloviating…"
+		status, _, _ := detectClaudeStatus(content)
+		if status != StatusWorking {
+			t.Errorf("status = %s, want %s", status, StatusWorking)
+		}
+	})
+
+	t.Run("tool permission still beats working history", func(t *testing.T) {
+		content := "✢ Bloviating… for a moment\n" + realPermissionBox
+		status, _, _ := detectClaudeStatus(content)
+		if status != StatusPermission {
+			t.Errorf("status = %s, want %s", status, StatusPermission)
 		}
 	})
 }

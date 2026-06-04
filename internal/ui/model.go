@@ -233,6 +233,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.updateViewport()
 				}
 			}
+		case "a":
+			if m.cursor < len(m.sessions) {
+				s := m.sessions[m.cursor]
+				if s.Status == monitor.StatusPermission {
+					_ = tmux.SendKeySequence(s.Pane.PaneID, "Down", "Enter")
+					m.sessions[m.cursor].Status = monitor.StatusWorking
+					m.sessions[m.cursor].Request = nil
+					m.updateViewport()
+				}
+			}
 		case "n":
 			if m.cursor < len(m.sessions) {
 				s := m.sessions[m.cursor]
@@ -247,6 +257,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.sessions[m.cursor].Status = monitor.StatusIdle
 					m.sessions[m.cursor].Question = nil
 					m.updateViewport()
+				}
+			}
+		case "enter":
+			if m.cursor < len(m.sessions) {
+				s := m.sessions[m.cursor]
+				if err := tmux.SwitchToPane(s.Pane); err != nil {
+					m.err = err
 				}
 			}
 		case "r":
@@ -348,6 +365,8 @@ func (m *Model) contentPaneText() string {
 		sb.WriteString(strings.Repeat("─", 36) + "\n")
 		sb.WriteString(
 			lipgloss.NewStyle().Bold(true).Foreground(colorIdle).Render("  [y] Approve") +
+				"     " +
+				lipgloss.NewStyle().Bold(true).Foreground(colorIdle).Render("[a] Approve all") +
 				"     " +
 				lipgloss.NewStyle().Bold(true).Foreground(colorError).Render("[n] Deny") + "\n",
 		)
@@ -528,6 +547,6 @@ func (m Model) renderSessionList(width, height int) string {
 // helpBar renders the bottom keybinding help.
 func helpBar() string {
 	return styleHelp.Render(
-		"[↑↓/jk] Navigate  [y] Approve/Yes  [n] Deny/No  [r] Refresh  [q] Quit",
+		"[↑↓/jk] Navigate  [enter] Go to pane  [y] Approve/Yes  [a] Approve all  [n] Deny/No  [r] Refresh  [q] Quit",
 	)
 }
