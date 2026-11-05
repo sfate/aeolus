@@ -11,6 +11,7 @@ import (
 
 	"github.com/sfate/aeolus/internal/config"
 	"github.com/sfate/aeolus/internal/monitor"
+	"github.com/sfate/aeolus/internal/preferences"
 	"github.com/sfate/aeolus/internal/tmux"
 )
 
@@ -134,28 +135,31 @@ type SessionMonitor interface {
 
 // Model is the main Bubble Tea model for Aeolus.
 type Model struct {
-	interval        time.Duration
-	projects        []config.Project
-	defaultProvider string
-	backend         tmux.Backend
-	monitor         SessionMonitor
-	sessions        []monitor.Session
-	cursor          int
-	width           int
-	height          int
-	lastRefresh     time.Time
-	err             error
-	quitting        bool
-	viewport        viewport.Model
-	tmuxMissing     bool
-	confirmKill     string
-	search          outputSearch
-	lifecycle       lifecycleForm
-	composer        promptComposer
-	contextRequest  uint64
-	filters         sessionFilters
-	allSessions     []monitor.Session
-	review          gitReviewState
+	preferencesSaving bool
+	preferenceNotice  string
+	preferenceSave    func(preferences.Snapshot) error
+	interval          time.Duration
+	projects          []config.Project
+	defaultProvider   string
+	backend           tmux.Backend
+	monitor           SessionMonitor
+	sessions          []monitor.Session
+	cursor            int
+	width             int
+	height            int
+	lastRefresh       time.Time
+	err               error
+	quitting          bool
+	viewport          viewport.Model
+	tmuxMissing       bool
+	confirmKill       string
+	search            outputSearch
+	lifecycle         lifecycleForm
+	composer          promptComposer
+	contextRequest    uint64
+	filters           sessionFilters
+	allSessions       []monitor.Session
+	review            gitReviewState
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -229,6 +233,15 @@ func (m Model) doKillPane(paneID string) tea.Cmd {
 // Update handles incoming messages and user input.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	case preferencesSavedMsg:
+		m.preferencesSaving = false
+		if msg.err != nil {
+			m.preferenceNotice = fmt.Sprintf("Cannot save dashboard filters: %v", msg.err)
+		} else {
+			m.preferenceNotice = "Dashboard filters saved. Clear filters and press S to reset startup choices."
+		}
+		return m, nil
 
 	case gitReviewMsg:
 		m.finishGitReview(msg)
@@ -358,6 +371,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.String() {
+		case "S":
+			return m, m.savePreferences()
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
@@ -640,6 +655,9 @@ func (m Model) View() string {
 	}
 	header := lipgloss.JoinHorizontal(lipgloss.Top, title, ts)
 	header += "\n" + styleHelp.Render(m.filterSummary())
+	if m.preferenceNotice != "" {
+		header += "\n" + safeReviewText(m.preferenceNotice)
+	}
 
 	if m.review.active {
 		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.gitReviewView())
@@ -786,7 +804,7 @@ func (m Model) helpBar() string {
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
-	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [g] Git review  [f] Filter  [/] Search  [i] Compose  [q] Quit")
+	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [S] Save filters  [g] Git review  [f] Filter  [/] Search  [i] Compose  [q] Quit")
 }
 
 func (m Model) footer() string {
