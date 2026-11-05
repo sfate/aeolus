@@ -22,6 +22,10 @@ Track implementation and review progress in [the parent issue](https://github.co
 
 Shell-session foundation is tracked in [child #47](https://github.com/sfate/aeolus/issues/47). Explicit command event integration and command-block browsing remain separate slices of #10.
 
+## Workflow delivery
+
+Parameterized workflow storage and rendering are tracked in [child #57](https://github.com/sfate/aeolus/issues/57). TUI save/select/parameter entry will follow in a separate dependent PR; no backend operation executes a command or stores entered parameter values.
+
 ## Review contract
 
 Each implementation PR links its issue, describes user-visible behavior, records automated and manual verification, and remains open for review. Split oversized issues before implementation. Dependent changes must identify their base PR and remain independently understandable.
