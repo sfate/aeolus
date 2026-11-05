@@ -47,12 +47,19 @@ make run     # go run .
 | `esc` | Cancel query editing or clear the search |
 | `q` | Quit |
 | `?` | Open contextual keyboard help |
+| `ctrl+k` | Search dashboard actions in the command palette |
 
 ## Keyboard help
 
 Press `?` from the dashboard to open scrollable keyboard help. The first section shows the selected provider and status, with approval keys only when supported by the current Claude request. It updates as sessions refresh. Other sections cover dashboard navigation, composer and attachment editing, session forms, filters, search, and Git review.
 
 Use arrows, j/k, page up/down, or Home/End to scroll and Escape to return to the dashboard. Session actions are disabled while help is open; Ctrl+C quits. In text inputs, `?` stays ordinary text. Close other modals before opening help.
+
+## Command palette
+
+Press `ctrl+k` from the dashboard to search available actions. Type a case-insensitive substring, select with up/down or ctrl+p/ctrl+n, and press Enter to execute. Escape cancels. The palette uses the same handlers as dashboard shortcuts, so choosing Kill pane opens the existing confirmation before termination. Launch, rename, and composer actions appear only when the backend supports them; approval actions require a supported request from the original selected provider. If that pane disappears or changes provider, its actions become unavailable until you close and reopen the palette. Background refresh does not retarget a pending selection to another session.
+
+Edit the query with left/right, Home/End or ctrl+a/ctrl+e, Backspace/Delete, and ctrl+u to clear. Ordinary letters, including dashboard shortcuts, stay query text. Open the palette after closing other modals; Ctrl+C quits from the palette.
 
 ## Session lifecycle
 
