@@ -78,3 +78,44 @@ func TestLifecycleModalDoesNotTriggerShortcuts(t *testing.T) {
 		t.Fatal("modal leaked shortcuts")
 	}
 }
+
+func TestLifecycleModalIsolation(t *testing.T) {
+	m := NewModelWithBackend(&lifecycleFake{}, &fakeMonitor{})
+	m.sessions = []monitor.Session{testSession("%1")}
+	m = key(m, t, "i")
+	m = key(m, t, "cRf")
+	if m.lifecycle.kind != lifecycleNone || m.filters.editing || m.composer.draft != "cRf" {
+		t.Fatal("composer shortcuts opened another modal")
+	}
+	m = key(m, t, "esc")
+	m = key(m, t, "f")
+	m = key(m, t, "c")
+	m = key(m, t, "R")
+	if m.lifecycle.kind != lifecycleNone || m.composer.active {
+		t.Fatal("filter shortcuts opened lifecycle modal")
+	}
+	m = key(m, t, "esc")
+	m = key(m, t, "c")
+	m = key(m, t, "if")
+	if m.composer.active || m.filters.editing || m.lifecycle.kind != lifecycleLaunch {
+		t.Fatal("lifecycle input opened another modal")
+	}
+}
+
+func TestLaunchAddsToSourceAndSelectsDespiteFilters(t *testing.T) {
+	m := NewModelWithBackend(&lifecycleFake{}, &fakeMonitor{})
+	m.sessions = []monitor.Session{testSession("%1")}
+	m.filters.applied.provider = 1
+	m.applyFilters()
+	m.lifecycle = lifecycleForm{kind: lifecycleLaunch, busy: true}
+	launched := tmux.Pane{PaneID: "%9", WindowName: "codex"}
+	m, _ = updateModel(t, m, lifecycleMsg{pane: launched, provider: monitor.ProviderCodex})
+	if len(m.allSessions) != 2 || m.selectedPaneID() != "%9" || m.filters.applied != (filterChoice{}) {
+		t.Fatal("launch was hidden or missing from source")
+	}
+	m.lifecycle = lifecycleForm{kind: lifecycleRename, paneID: "%9", text: "review", busy: true}
+	m, _ = updateModel(t, m, lifecycleMsg{})
+	if m.sessions[m.cursor].Pane.WindowName != "review" || m.allSessions[1].Pane.WindowName != "review" {
+		t.Fatal("rename failed to update full source")
+	}
+}

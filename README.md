@@ -38,7 +38,9 @@ make run     # go run .
 | `R` | Rename the selected pane's window |
 | `x` | Kill selected pane after confirmation |
 | `r` | Force refresh |
+| `f` | Filter sessions by provider and status |
 | `/` | Edit a captured-output search |
+| `i` | Compose a prompt for the selected session |
 | `ctrl+n` / `ctrl+p` | Next / previous matching line |
 | `esc` | Cancel query editing or clear the search |
 | `q` | Quit |
@@ -59,6 +61,14 @@ Aeolus reads `$XDG_CONFIG_HOME/aeolus/config.json`, or `~/.config/aeolus/config.
 
 Use `aeolus --config /path/to/config.json` to select another file. An explicitly selected file must exist. The version field is required and must be `1`; `refresh_interval` is optional and defaults to `2s`. Its allowed range is `100ms` through `1m`. Invalid files, duplicate or unknown fields, and unsupported versions produce an error before the TUI starts. Settings are read at startup. This first configuration slice supports the polling interval only.
 
+## Prompt composer
+
+Press `i` to draft a prompt for the selected pane. `enter` adds a newline, `ctrl+s` sends the draft, and `esc` discards it. Arrow keys, home/end, backspace, and delete edit Unicode text. Session shortcuts become ordinary text while composing. Delivery runs asynchronously; repeat sends and edits are blocked until it finishes.
+
+The draft stays bound to the original pane and provider across refreshes. If that target disappears or changes provider, sending is blocked. Errors retain the draft. A failure after pasting may leave text in the target, so inspect that pane before retrying. The composer sends explicit user text to any detected provider, including sessions with unknown status; it does not infer provider-specific approval actions.
+
+Text is pasted through a uniquely named tmux buffer and followed by a separate Enter only after paste succeeds. Words such as `Enter` and `Escape` remain literal. Newlines and tabs are allowed; other terminal control characters are rejected by the transport. Bracketed paste is requested when supported by the receiving application; the target application controls how multiline input and the final Enter behave. The temporary buffer is removed after delivery attempts.
+
 ## Output search
 
 Press `/`, type a literal query, and press `enter` to keep it. Search ignores case and terminal color escapes, includes the full captured output (currently 50 history lines plus the visible pane), and counts matching lines. The active line has a `>` marker. `ctrl+n` and `ctrl+p` wrap through matches without changing the selected session.
@@ -78,3 +88,9 @@ Detection uses executable names and known npm entry points in the pane process t
 ## License
 
 [MIT](LICENSE)
+
+## Session filters
+
+Press `f` to open session filters. Press `p` to cycle providers and `s` to cycle statuses, then `enter` to apply. Press `c` to clear both choices or `esc` to discard draft changes. The header shows active filters and visible/total session counts. Filtering keeps the selected pane when it remains visible and retains hidden sessions so clearing filters restores them. An empty result does not send actions to hidden panes. Output search remains scoped to the visible selected pane; typing `f` while editing a search query inserts text instead of opening filters. Project filters remain planned until project metadata is available.
+
+Launching a session clears active provider/status filters so the new session is visible and selected.

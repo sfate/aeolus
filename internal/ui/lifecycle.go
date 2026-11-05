@@ -175,14 +175,19 @@ func (m Model) finishLifecycle(msg lifecycleMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.lifecycle.kind == lifecycleLaunch {
-		m.sessions = append(m.sessions, monitor.Session{Pane: msg.pane, Provider: msg.provider, Status: monitor.StatusUnknown})
-		m.cursor = len(m.sessions) - 1
+		m.syncFilterSource()
+		m.allSessions = append(m.allSessions, monitor.Session{Pane: msg.pane, Provider: msg.provider, Status: monitor.StatusUnknown})
+		// A newly launched session should be visible and selected.
+		m.filters.applied = filterChoice{}
+		m.rebuildFilteredSessions(msg.pane.PaneID)
 	} else {
-		for i := range m.sessions {
-			if m.sessions[i].Pane.PaneID == m.lifecycle.paneID {
-				m.sessions[i].Pane.WindowName = m.lifecycle.text
+		m.syncFilterSource()
+		for i := range m.allSessions {
+			if m.allSessions[i].Pane.PaneID == m.lifecycle.paneID {
+				m.allSessions[i].Pane.WindowName = m.lifecycle.text
 			}
 		}
+		m.rebuildFilteredSessions(m.lifecycle.paneID)
 	}
 	m.lifecycle = lifecycleForm{}
 	m.err = nil
