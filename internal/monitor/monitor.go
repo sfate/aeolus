@@ -444,6 +444,10 @@ func detectClaudeStatus(content string) (Status, *PermissionRequest, *QuestionRe
 
 // DetectSession captures pane content and determines the Claude Code status.
 func DetectSession(pane tmux.Pane, procs []processInfo) Session {
+	return detectSession(tmux.Client{}, pane, procs)
+}
+
+func detectSession(backend PaneSource, pane tmux.Pane, procs []processInfo) Session {
 	session := Session{
 		Pane:      pane,
 		Status:    StatusUnknown,
@@ -451,7 +455,7 @@ func DetectSession(pane tmux.Pane, procs []processInfo) Session {
 	}
 
 	// Capture last 50 lines of pane content
-	content, err := tmux.CapturePane(pane.PaneID, 50)
+	content, err := backend.CapturePane(pane.PaneID, 50)
 	if err != nil {
 		session.Status = StatusUnknown
 		return session
@@ -486,12 +490,33 @@ func DetectSession(pane tmux.Pane, procs []processInfo) Session {
 
 // Refresh builds a Session list from the current set of panes.
 func Refresh(panes []tmux.Pane) []Session {
+	return New(tmux.Client{}).Refresh(panes)
+}
+
+// PaneSource supplies captured output without coupling detection to tmux execution.
+type PaneSource interface {
+	CapturePane(string, int) (string, error)
+}
+
+// Monitor detects agent state using an injected pane source.
+type Monitor struct {
+	backend   PaneSource
+	processes func() ([]processInfo, error)
+}
+
+// New creates a monitor backed by the supplied pane source.
+func New(backend PaneSource) *Monitor {
+	return &Monitor{backend: backend, processes: parseProcessList}
+}
+
+// Refresh builds sessions using one process snapshot per refresh.
+func (m *Monitor) Refresh(panes []tmux.Pane) []Session {
 	// Fetch process list once for all panes
-	procs, _ := parseProcessList()
+	procs, _ := m.processes()
 
 	sessions := make([]Session, 0, len(panes))
 	for _, pane := range panes {
-		sessions = append(sessions, DetectSession(pane, procs))
+		sessions = append(sessions, detectSession(m.backend, pane, procs))
 	}
 
 	// Only include panes where Claude is actually running, preserving pane order.

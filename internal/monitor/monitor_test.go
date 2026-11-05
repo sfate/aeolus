@@ -2,6 +2,8 @@ package monitor
 
 import (
 	"testing"
+
+	"github.com/sfate/aeolus/internal/tmux"
 )
 
 // ---- tailLines ---------------------------------------------------------------
@@ -627,5 +629,22 @@ func TestStatusString(t *testing.T) {
 		if got := tt.s.String(); got != tt.want {
 			t.Errorf("Status(%d).String() = %q, want %q", tt.s, got, tt.want)
 		}
+	}
+}
+
+type fakePaneSource struct{ content map[string]string }
+
+func (f fakePaneSource) CapturePane(id string, lines int) (string, error) { return f.content[id], nil }
+
+func TestInjectedMonitor(t *testing.T) {
+	calls := 0
+	m := New(fakePaneSource{content: map[string]string{"%2": "Thinking...", "%1": "ready"}})
+	m.processes = func() ([]processInfo, error) { calls++; return nil, nil }
+	sessions := m.Refresh([]tmux.Pane{{PaneID: "%2", CurrentCommand: "claude"}, {PaneID: "%1", CurrentCommand: "claude"}, {PaneID: "%3", CurrentCommand: "bash"}})
+	if calls != 1 || len(sessions) != 2 {
+		t.Fatalf("calls=%d sessions=%v", calls, sessions)
+	}
+	if sessions[0].Pane.PaneID != "%2" || sessions[0].Status != StatusWorking || sessions[1].Status != StatusIdle {
+		t.Fatalf("unexpected sessions: %#v", sessions)
 	}
 }
