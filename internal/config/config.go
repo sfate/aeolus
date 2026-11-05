@@ -13,12 +13,19 @@ import (
 const DefaultRefreshInterval = 2 * time.Second
 
 // Config contains validated runtime settings.
-type Config struct{ RefreshInterval time.Duration }
+type Config struct {
+	RefreshInterval time.Duration
+	Projects        []Project
+	DefaultProvider string
+}
+
+// Project is a named directory and agent preset used by the launch form.
+type Project struct{ Name, Directory, Provider string }
 
 // Load reads an explicit file, or the default XDG configuration when path is empty.
 // A missing default file uses defaults; an explicit missing file is an error.
 func Load(path string) (Config, error) {
-	result := Config{RefreshInterval: DefaultRefreshInterval}
+	result := Config{RefreshInterval: DefaultRefreshInterval, DefaultProvider: "claude"}
 	explicit := path != ""
 	if !explicit {
 		root := os.Getenv("XDG_CONFIG_HOME")
@@ -50,7 +57,7 @@ func Load(path string) (Config, error) {
 }
 
 func decode(r io.Reader) (Config, error) {
-	result := Config{RefreshInterval: DefaultRefreshInterval}
+	result := Config{RefreshInterval: DefaultRefreshInterval, DefaultProvider: "claude"}
 	d := json.NewDecoder(r)
 	token, err := d.Token()
 	if err != nil {
@@ -83,6 +90,18 @@ func decode(r io.Reader) (Config, error) {
 			if err = json.Unmarshal(raw, &version); err != nil || version != 1 {
 				return result, fmt.Errorf("version must be 1")
 			}
+		case "default_provider":
+			var value string
+			if err = json.Unmarshal(raw, &value); err != nil || !supportedProvider(value) {
+				return result, fmt.Errorf("default_provider must be claude, codex, or gemini")
+			}
+			result.DefaultProvider = value
+		case "projects":
+			projects, err := decodeProjects(raw)
+			if err != nil {
+				return result, err
+			}
+			result.Projects = projects
 		case "refresh_interval":
 			var value string
 			if string(raw) == "null" {

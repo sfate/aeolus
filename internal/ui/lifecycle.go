@@ -25,6 +25,7 @@ type lifecycleForm struct {
 	text     string
 	position int
 	provider int
+	preset   int
 	paneID   string
 	busy     bool
 	err      error
@@ -46,7 +47,7 @@ func (m *Model) lifecycleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 		switch msg.String() {
 		case "c":
 			directory, err := os.Getwd()
-			m.lifecycle = lifecycleForm{kind: lifecycleLaunch, text: directory, position: len([]rune(directory)), err: err}
+			m.lifecycle = lifecycleForm{kind: lifecycleLaunch, text: directory, position: len([]rune(directory)), provider: launchProviderIndex(m.defaultProvider), preset: -1, err: err}
 		case "R":
 			if m.cursor >= len(m.sessions) {
 				return true, nil
@@ -71,6 +72,10 @@ func (m *Model) lifecycleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.lifecycle = lifecycleForm{}
+	case "ctrl+p":
+		if form.kind == lifecycleLaunch {
+			m.cycleProjectPreset()
+		}
 	case "tab", "shift+tab":
 		if form.kind == lifecycleLaunch {
 			step := 1
@@ -78,6 +83,7 @@ func (m *Model) lifecycleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 				step = -1
 			}
 			form.provider = (form.provider + step + len(launchProviders)) % len(launchProviders)
+			form.preset = -1
 		}
 	case "enter":
 		transport, ok := m.backend.(tmux.Lifecycle)
@@ -165,6 +171,9 @@ func (m *Model) lifecycleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 			form.position += len(clean)
 		}
 	}
+	if form.kind == lifecycleLaunch && form.text != string(runes) && msg.String() != "ctrl+p" {
+		form.preset = -1
+	}
 	return true, nil
 }
 
@@ -205,6 +214,7 @@ func (m Model) lifecycleView() string {
 	if form.kind == lifecycleLaunch {
 		title = "Launch agent"
 		details = fmt.Sprintf("Agent: %s  [tab/shift+tab] Change\nDirectory: %s\n\nCreates a dedicated detached tmux session.", launchProviders[form.provider], input)
+		details += "\nPreset: " + m.projectPresetLabel() + "  [ctrl+p] Next configured project"
 	}
 	status := "[enter] Submit  [esc] Cancel"
 	if form.busy {
