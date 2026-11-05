@@ -233,8 +233,7 @@ func (m Model) finishLifecycle(msg lifecycleMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) lifecycleView() string {
 	form := m.lifecycle
-	runes := []rune(form.text)
-	input := string(runes[:form.position]) + "▏" + string(runes[form.position:])
+	input := focusInput(form.text, form.position, max(1, m.width-13))
 	title := "Rename window for pane " + form.paneID
 	details := "Window name: " + input + "\n\nRenames the entire tmux window, including other panes."
 	if form.kind == lifecycleLaunch {
@@ -247,11 +246,18 @@ func (m Model) lifecycleView() string {
 		details += "\nPreset: " + m.projectPresetLabel() + "  [ctrl+p] Next configured project"
 	}
 	status := "[enter] Submit  [esc] Cancel"
+	if m.width < 40 {
+		status = "[enter] [esc] Cancel"
+	}
 	if form.busy {
 		status = "Working...  [ctrl+c] Quit"
 	}
+	body := title + "\n\n" + details
+	// Keep submit/cancel instructions visible even when an error is multiline.
+	budget := max(1, m.height-4)
 	if form.err != nil {
-		status = form.err.Error() + "\n\n" + status
+		status = fitLine(strings.ReplaceAll(form.err.Error(), "\n", " "), m.width) + "\n[enter] [esc] Cancel"
 	}
-	return title + "\n\n" + details + "\n\n" + status
+	statusLines := strings.Count(status, "\n") + 1
+	return fitScreen(body, m.width, max(1, budget-statusLines)) + "\n" + status
 }
