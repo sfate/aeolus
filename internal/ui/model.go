@@ -17,6 +17,7 @@ import (
 // ---- Messages ----------------------------------------------------------------
 
 type tickMsg time.Time
+type refreshRequestedMsg struct{}
 
 type refreshMsg struct {
 	sessions []monitor.Session
@@ -154,6 +155,10 @@ type Model struct {
 	filters        sessionFilters
 	allSessions    []monitor.Session
 	review         gitReviewState
+
+	refreshing      bool
+	refreshQueued   bool
+	refreshObsolete bool
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -182,11 +187,11 @@ func NewModelWithBackend(backend tmux.Backend, sessionMonitor SessionMonitor) Mo
 	}
 }
 
-// Init returns the initial command — a tick to start polling.
+// Init schedules polling and requests the first refresh through Update.
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.tick(),
-		m.doRefresh(),
+		func() tea.Msg { return refreshRequestedMsg{} },
 	)
 }
 
@@ -196,7 +201,13 @@ func (m Model) tick() tea.Cmd {
 	})
 }
 
-func (m Model) doRefresh() tea.Cmd {
+func (m *Model) doRefresh() tea.Cmd {
+	// Keep monitor state single-threaded and coalesce repeated requests.
+	if m.refreshing {
+		m.refreshQueued = true
+		return nil
+	}
+	m.refreshing = true
 	return func() tea.Msg {
 		panes, err := m.backend.ListAllPanes()
 		if err != nil {
@@ -240,9 +251,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		return m, tea.Batch(m.tick(), m.doRefresh())
+		cmd := m.doRefresh()
+		return m, tea.Batch(m.tick(), cmd)
+
+	case refreshRequestedMsg:
+		cmd := m.doRefresh()
+		return m, cmd
 
 	case refreshMsg:
+		m.refreshing = false
+		if m.refreshObsolete {
+			m.refreshObsolete = false
+			m.refreshQueued = false
+			cmd := m.doRefresh()
+			return m, cmd
+		}
 		if msg.err != nil {
 			m.err = msg.err
 			// Detect tmux-not-running specifically
@@ -266,6 +289,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.updateViewport()
 		}
+		if m.refreshQueued {
+			m.refreshQueued = false
+			cmd := m.doRefresh()
+			return m, cmd
+		}
 		return m, nil
 
 	case killPaneMsg:
@@ -276,6 +304,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.confirmKill = ""
+		m.refreshObsolete = m.refreshing
 		selected := m.selectedPaneID()
 		m.syncFilterSource()
 		m.allSessions = removePane(m.allSessions, msg.paneID)
@@ -284,7 +313,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursor = len(m.sessions) - 1
 		}
 		m.updateViewport()
-		return m, m.doRefresh()
+		cmd := m.doRefresh()
+		return m, cmd
 
 	case contextLoadedMsg:
 		m.contextLoaded(msg)
@@ -416,7 +446,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateViewport()
 			}
 		case "r":
-			return m, m.doRefresh()
+			cmd := m.doRefresh()
+			return m, cmd
 		case "q", "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
