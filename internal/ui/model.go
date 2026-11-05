@@ -118,7 +118,7 @@ func statusIcon(s monitor.Status) string {
 
 // sessionLabel builds the display label for a session.
 func sessionLabel(s monitor.Session) string {
-	name := fmt.Sprintf("%s/%s", s.Pane.SessionName, s.Pane.WindowName)
+	name := fmt.Sprintf("[%s] %s/%s", s.Provider, s.Pane.SessionName, s.Pane.WindowName)
 	if len(name) > 20 {
 		name = name[:19] + "…"
 	}
@@ -147,6 +147,7 @@ type Model struct {
 	viewport    viewport.Model
 	tmuxMissing bool
 	confirmKill string
+	search      outputSearch
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -235,7 +236,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.err = nil
 			m.tmuxMissing = false
+			selected := ""
+			if m.cursor < len(m.sessions) {
+				selected = m.sessions[m.cursor].Pane.PaneID
+			}
 			m.sessions = msg.sessions
+			for i, session := range m.sessions {
+				if session.Pane.PaneID == selected {
+					m.cursor = i
+					break
+				}
+			}
 			m.lastRefresh = time.Now()
 			// Clamp cursor
 			if m.cursor >= len(m.sessions) && len(m.sessions) > 0 {
@@ -282,6 +293,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		if m.searchKey(msg) {
+			if m.quitting {
+				return m, tea.Quit
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "up", "k":
 			if m.cursor > 0 {
@@ -296,7 +314,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateViewport()
 			}
 		case "y":
-			if m.cursor < len(m.sessions) {
+			if m.cursor < len(m.sessions) && m.sessions[m.cursor].CanRespond() {
 				s := m.sessions[m.cursor]
 				switch s.Status {
 				case monitor.StatusPermission:
@@ -312,7 +330,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "a":
-			if m.cursor < len(m.sessions) {
+			if m.cursor < len(m.sessions) && m.sessions[m.cursor].CanRespond() {
 				s := m.sessions[m.cursor]
 				if s.Status == monitor.StatusPermission {
 					_ = m.backend.SendKeySequence(s.Pane.PaneID, "Down", "Enter")
@@ -322,7 +340,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "n":
-			if m.cursor < len(m.sessions) {
+			if m.cursor < len(m.sessions) && m.sessions[m.cursor].CanRespond() {
 				s := m.sessions[m.cursor]
 				switch s.Status {
 				case monitor.StatusPermission:
@@ -346,6 +364,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "x":
 			if m.cursor < len(m.sessions) {
+				m.search = outputSearch{}
 				m.confirmKill = m.sessions[m.cursor].Pane.PaneID
 				m.updateViewport()
 			}
@@ -414,6 +433,12 @@ func contentPaneHeight(total int) int {
 // - permission sessions: top (so the parsed summary is immediately visible)
 // - others: bottom (so the most recent terminal output is visible)
 func (m *Model) updateViewport() {
+	if m.search.active() {
+		m.updateSearchViewport()
+		if m.search.active() {
+			return
+		}
+	}
 	m.viewport.SetContent(m.contentPaneText())
 	s := monitor.Status(-1)
 	if m.cursor < len(m.sessions) {
@@ -469,7 +494,7 @@ func (m *Model) contentPaneText() string {
 		return sb.String()
 	}
 
-	if s.Status == monitor.StatusPermission {
+	if s.CanRespond() && s.Status == monitor.StatusPermission {
 		var sb strings.Builder
 		req := s.Request
 
@@ -497,7 +522,7 @@ func (m *Model) contentPaneText() string {
 		return sb.String()
 	}
 
-	if s.Status == monitor.StatusQuestion {
+	if s.CanRespond() && s.Status == monitor.StatusQuestion {
 		var sb strings.Builder
 		sb.WriteString(styleQuestionWarning.Render("?  QUESTION") + "\n")
 		sb.WriteString(strings.Repeat("─", 36) + "\n")
@@ -514,6 +539,10 @@ func (m *Model) contentPaneText() string {
 		sb.WriteString(lipgloss.NewStyle().Foreground(colorHelp).Render("─── context ───") + "\n")
 		sb.WriteString(tailLines(s.Content, 15))
 		return sb.String()
+	}
+
+	if s.Status == monitor.StatusUnknown {
+		return fmt.Sprintf("%s activity is unknown. Open the pane to inspect or respond.\n\n%s", s.Provider, tailLines(s.Content, 50))
 	}
 
 	// For working/idle: show tail so newest output is at the bottom.
@@ -533,7 +562,7 @@ func (m Model) View() string {
 	}
 
 	// Header
-	title := styleHeader.Render(" Aeolus — Claude Code Session Manager ")
+	title := styleHeader.Render(" Aeolus - Agent Session Manager ")
 	ts := ""
 	if !m.lastRefresh.IsZero() {
 		ts = lipgloss.NewStyle().Foreground(colorHelp).Render(
@@ -549,14 +578,14 @@ func (m Model) View() string {
 			Foreground(colorError).
 			Padding(2, 4).
 			Render("tmux server is not running.\n\nStart a tmux session and relaunch Aeolus.")
-		return lipgloss.JoinVertical(lipgloss.Left, header, errMsg, helpBar())
+		return lipgloss.JoinVertical(lipgloss.Left, header, errMsg, m.helpBar())
 	}
 	if m.err != nil {
 		errMsg := lipgloss.NewStyle().
 			Foreground(colorError).
 			Padding(1, 2).
 			Render("Error: " + m.err.Error())
-		return lipgloss.JoinVertical(lipgloss.Left, header, errMsg, helpBar())
+		return lipgloss.JoinVertical(lipgloss.Left, header, errMsg, m.helpBar())
 	}
 
 	lw := listPaneWidth(m.width)
@@ -607,7 +636,7 @@ func (m Model) View() string {
 		"",
 		panes,
 		"",
-		helpBar(),
+		m.footer(),
 	)
 }
 
@@ -617,7 +646,7 @@ func (m Model) renderSessionList(width, height int) string {
 		return lipgloss.NewStyle().
 			Foreground(colorNoClaud).
 			Italic(true).
-			Render("No Claude Code sessions found")
+			Render("No supported agent sessions found")
 	}
 
 	var sb strings.Builder
@@ -655,9 +684,9 @@ func (m Model) renderSessionList(width, height int) string {
 			row = lipgloss.NewStyle().Background(colorQuestionBg).Bold(true).Render(row)
 		} else if selected {
 			row = lipgloss.NewStyle().Background(colorSelected).Bold(true).Render(row)
-		} else if s.Status == monitor.StatusPermission {
+		} else if s.CanRespond() && s.Status == monitor.StatusPermission {
 			row = lipgloss.NewStyle().Background(colorPermBg).Render(row)
-		} else if s.Status == monitor.StatusQuestion {
+		} else if s.CanRespond() && s.Status == monitor.StatusQuestion {
 			row = lipgloss.NewStyle().Background(colorQuestionBg).Render(row)
 		}
 
@@ -673,8 +702,18 @@ func (m Model) renderSessionList(width, height int) string {
 }
 
 // helpBar renders the bottom keybinding help.
-func helpBar() string {
-	return styleHelp.Render(
-		"[↑↓/jk] Navigate  [enter] Go to pane  [y] Approve/Yes  [a] Approve all  [n] Deny/No  [x] Kill pane  [r] Refresh  [q] Quit",
-	)
+func (m Model) helpBar() string {
+	responses := ""
+	if m.cursor < len(m.sessions) && m.sessions[m.cursor].CanRespond() &&
+		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
+		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
+	}
+	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [x] Kill pane  [r] Refresh  [/] Search  [q] Quit")
+}
+
+func (m Model) footer() string {
+	if m.search.active() {
+		return m.searchHelp()
+	}
+	return m.helpBar()
 }

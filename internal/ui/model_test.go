@@ -14,6 +14,7 @@ import (
 
 func testSession(paneID string) monitor.Session {
 	return monitor.Session{
+		Provider: monitor.ProviderClaude,
 		Pane: tmux.Pane{
 			PaneID:      paneID,
 			SessionName: "session-" + strings.TrimPrefix(paneID, "%"),
