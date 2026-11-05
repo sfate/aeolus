@@ -106,7 +106,7 @@ type Backend interface {
 }
 
 // Client executes pane operations through the local tmux executable.
-type Client struct{}
+type Client struct{ ProviderArgs map[string][]string }
 
 func (Client) ListAllPanes() ([]Pane, error)                    { return ListAllPanes() }
 func (Client) CapturePane(id string, lines int) (string, error) { return CapturePane(id, lines) }
