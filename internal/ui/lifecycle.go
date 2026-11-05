@@ -26,6 +26,7 @@ type lifecycleForm struct {
 	position int
 	provider int
 	preset   int
+	shell    bool
 	paneID   string
 	busy     bool
 	err      error
@@ -34,6 +35,7 @@ type lifecycleForm struct {
 type lifecycleMsg struct {
 	pane     tmux.Pane
 	provider monitor.Provider
+	shell    bool
 	err      error
 }
 
@@ -82,12 +84,20 @@ func (m *Model) lifecycleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 			if msg.String() == "shift+tab" {
 				step = -1
 			}
-			form.provider = (form.provider + step + len(launchProviders)) % len(launchProviders)
+			choice := form.provider
+			if form.shell {
+				choice = len(launchProviders)
+			}
+			choice = (choice + step + len(launchProviders) + 1) % (len(launchProviders) + 1)
+			form.shell = choice == len(launchProviders)
+			if !form.shell {
+				form.provider = choice
+			}
 			form.preset = -1
 		}
 	case "enter":
 		transport, ok := m.backend.(tmux.Lifecycle)
-		if !ok {
+		if !ok && (form.kind != lifecycleLaunch || !form.shell) {
 			form.err = fmt.Errorf("session lifecycle is not supported by this backend")
 			return true, nil
 		}
@@ -118,9 +128,19 @@ func (m *Model) lifecycleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 			}
 		}
 		kind, paneID, provider := form.kind, form.paneID, launchProviders[form.provider]
+		shell := form.shell && kind == lifecycleLaunch
+		shellTransport, shellSupported := m.backend.(tmux.ShellLifecycle)
+		if shell && !shellSupported {
+			form.err = fmt.Errorf("shell sessions are not supported by this backend")
+			return true, nil
+		}
 		form.busy = true
 		form.err = nil
 		return true, func() tea.Msg {
+			if shell {
+				pane, err := shellTransport.CreateShellSession(text)
+				return lifecycleMsg{pane: pane, shell: true, err: err}
+			}
 			if kind == lifecycleLaunch {
 				pane, err := transport.CreateSession(text, string(provider))
 				return lifecycleMsg{pane: pane, provider: provider, err: err}
@@ -185,7 +205,11 @@ func (m Model) finishLifecycle(msg lifecycleMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.lifecycle.kind == lifecycleLaunch {
 		m.syncFilterSource()
-		m.allSessions = append(m.allSessions, monitor.Session{Pane: msg.pane, Provider: msg.provider, Status: monitor.StatusUnknown})
+		session := monitor.Session{Pane: msg.pane, Provider: msg.provider, Status: monitor.StatusUnknown}
+		if msg.shell {
+			session.Kind = monitor.SessionShell
+		}
+		m.allSessions = append(m.allSessions, session)
 		// A newly launched session should be visible and selected.
 		m.filters.applied = filterChoice{}
 		m.rebuildFilteredSessions(msg.pane.PaneID)
@@ -213,8 +237,12 @@ func (m Model) lifecycleView() string {
 	title := "Rename window for pane " + form.paneID
 	details := "Window name: " + input + "\n\nRenames the entire tmux window, including other panes."
 	if form.kind == lifecycleLaunch {
-		title = "Launch agent"
-		details = fmt.Sprintf("Agent: %s  [tab/shift+tab] Change\nDirectory: %s\n\nCreates a dedicated detached tmux session.", launchProviders[form.provider], input)
+		title = "Launch session"
+		choice := launchProviders[form.provider].String()
+		if form.shell {
+			choice = "Shell (zsh)"
+		}
+		details = fmt.Sprintf("Session: %s  [tab/shift+tab] Change\nDirectory: %s\n\nCreates a dedicated detached tmux session.", choice, input)
 		details += "\nPreset: " + m.projectPresetLabel() + "  [ctrl+p] Next configured project"
 	}
 	status := "[enter] Submit  [esc] Cancel"

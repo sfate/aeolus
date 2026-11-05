@@ -25,11 +25,19 @@ var filterProviders = []monitor.Provider{monitor.ProviderUnknown, monitor.Provid
 var filterStatuses = []monitor.Status{monitor.Status(-1), monitor.StatusUnknown, monitor.StatusIdle, monitor.StatusWorking, monitor.StatusPermission, monitor.StatusQuestion}
 
 func (f filterChoice) matches(s monitor.Session) bool {
-	return (f.provider == 0 || s.Provider == filterProviders[f.provider]) && (f.status == 0 || s.Status == filterStatuses[f.status]) && strings.Contains(s.Pane.CurrentPath, f.directory)
+	providerMatches := f.provider == 0
+	if f.provider == len(filterProviders) {
+		providerMatches = s.Kind == monitor.SessionShell
+	} else if f.provider != 0 {
+		providerMatches = s.Kind != monitor.SessionShell && s.Provider == filterProviders[f.provider]
+	}
+	return providerMatches && (f.status == 0 || s.Status == filterStatuses[f.status]) && strings.Contains(s.Pane.CurrentPath, f.directory)
 }
 func (f filterChoice) description() string {
 	provider, status := "All", "All"
-	if f.provider != 0 {
+	if f.provider == len(filterProviders) {
+		provider = "Shell"
+	} else if f.provider != 0 {
 		provider = filterProviders[f.provider].String()
 	}
 	if f.status != 0 {
@@ -112,7 +120,7 @@ func (m *Model) filterKey(msg tea.KeyMsg) bool {
 	}
 	switch msg.String() {
 	case "p":
-		m.filters.draft.provider = (m.filters.draft.provider + 1) % len(filterProviders)
+		m.filters.draft.provider = (m.filters.draft.provider + 1) % (len(filterProviders) + 1)
 	case "s":
 		m.filters.draft.status = (m.filters.draft.status + 1) % len(filterStatuses)
 	case "c":

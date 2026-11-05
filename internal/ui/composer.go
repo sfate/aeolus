@@ -20,6 +20,7 @@ type promptComposer struct {
 	active, pending bool
 	paneID, draft   string
 	provider        monitor.Provider
+	kind            monitor.SessionKind
 	position        int
 	err             error
 	context         contextInput
@@ -35,7 +36,7 @@ func (m *Model) composerKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 			return true, nil
 		}
 		m.search = outputSearch{}
-		m.composer = promptComposer{active: true, paneID: m.sessions[m.cursor].Pane.PaneID, provider: m.sessions[m.cursor].Provider}
+		m.composer = promptComposer{active: true, paneID: m.sessions[m.cursor].Pane.PaneID, provider: m.sessions[m.cursor].Provider, kind: m.sessions[m.cursor].Kind}
 		m.updateViewport()
 		return true, nil
 	}
@@ -166,6 +167,9 @@ func (m *Model) updateComposerViewport() {
 	c := m.composer
 	r := []rune(c.draft)
 	header := fmt.Sprintf("Compose for pane %s\n", c.paneID)
+	if c.kind == monitor.SessionShell {
+		header += "Shell command: Ctrl+S sends text and Enter, which executes commands.\n"
+	}
 	if c.pending {
 		header += "Sending...\n"
 	} else if !m.composerTargetAvailable() {
@@ -204,7 +208,7 @@ func (m Model) composerTargetAvailable() bool {
 		source = m.sessions
 	}
 	for _, s := range source {
-		if s.Pane.PaneID == m.composer.paneID && s.Provider == m.composer.provider {
+		if s.Pane.PaneID == m.composer.paneID && s.Provider == m.composer.provider && s.Kind == m.composer.kind {
 			return true
 		}
 	}
