@@ -22,7 +22,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	model := ui.NewModelWithRefreshInterval(settings.RefreshInterval)
+	model := ui.NewModelWithConfig(settings)
 
 	p := tea.NewProgram(
 		model,

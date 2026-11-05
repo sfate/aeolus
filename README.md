@@ -64,10 +64,17 @@ Review does not stage, edit, commit, fetch, or create worktrees. Git commands ha
 Aeolus reads `$XDG_CONFIG_HOME/aeolus/config.json`, or `~/.config/aeolus/config.json` when `XDG_CONFIG_HOME` is unset. A missing default file uses defaults. Set `XDG_CONFIG_HOME` to an absolute path when overriding it.
 
 ```json
-{"version": 1, "refresh_interval": "3s"}
+{
+  "version": 1,
+  "refresh_interval": "3s",
+  "default_provider": "codex",
+  "projects": [
+    {"name": "Application", "directory": "/absolute/path/to/application", "provider": "claude"}
+  ]
+}
 ```
 
-Use `aeolus --config /path/to/config.json` to select another file. An explicitly selected file must exist. The version field is required and must be `1`; `refresh_interval` is optional and defaults to `2s`. Its allowed range is `100ms` through `1m`. Invalid files, duplicate or unknown fields, and unsupported versions produce an error before the TUI starts. Settings are read at startup. This first configuration slice supports the polling interval only.
+Use `aeolus --config /path/to/config.json` to select another file. An explicitly selected file must exist. The version field is required and must be `1`; `refresh_interval` is optional and defaults to `2s`. Its allowed range is `100ms` through `1m`. Invalid files, duplicate or unknown fields, and unsupported versions produce an error before the TUI starts. Settings are read at startup. `default_provider` is optional and defaults to `claude`. It sets the initial agent when opening the launch form with `c`. Supported providers are `claude`, `codex`, and `gemini`. `projects` is an optional array of launch presets; each entry requires a unique, nonblank `name` (up to 80 characters), an absolute `directory`, and a supported `provider`. Names and paths cannot contain control characters. Relative paths and `~` are not expanded in configuration. Preset directories need not exist when loading settings; launch validates them. In the launch form, press `ctrl+p` to cycle project presets, then submit explicitly with Enter. Selecting a preset never starts an agent. Manual directory and provider edits remain available and mark the selection as Manual. Keybindings and saved dashboard preferences remain planned.
 
 ## Prompt composer
 

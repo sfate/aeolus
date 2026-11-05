@@ -134,26 +134,28 @@ type SessionMonitor interface {
 
 // Model is the main Bubble Tea model for Aeolus.
 type Model struct {
-	interval       time.Duration
-	backend        tmux.Backend
-	monitor        SessionMonitor
-	sessions       []monitor.Session
-	cursor         int
-	width          int
-	height         int
-	lastRefresh    time.Time
-	err            error
-	quitting       bool
-	viewport       viewport.Model
-	tmuxMissing    bool
-	confirmKill    string
-	search         outputSearch
-	lifecycle      lifecycleForm
-	composer       promptComposer
-	contextRequest uint64
-	filters        sessionFilters
-	allSessions    []monitor.Session
-	review         gitReviewState
+	interval        time.Duration
+	projects        []config.Project
+	defaultProvider string
+	backend         tmux.Backend
+	monitor         SessionMonitor
+	sessions        []monitor.Session
+	cursor          int
+	width           int
+	height          int
+	lastRefresh     time.Time
+	err             error
+	quitting        bool
+	viewport        viewport.Model
+	tmuxMissing     bool
+	confirmKill     string
+	search          outputSearch
+	lifecycle       lifecycleForm
+	composer        promptComposer
+	contextRequest  uint64
+	filters         sessionFilters
+	allSessions     []monitor.Session
+	review          gitReviewState
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -161,11 +163,18 @@ func NewModel() Model { return NewModelWithRefreshInterval(config.DefaultRefresh
 
 // NewModelWithRefreshInterval creates a model with a custom polling interval.
 func NewModelWithRefreshInterval(interval time.Duration) Model {
+	return NewModelWithConfig(config.Config{RefreshInterval: interval})
+}
+
+// NewModelWithConfig creates a model with startup settings and copied project presets.
+func NewModelWithConfig(settings config.Config) Model {
 	backend := tmux.Client{}
 	m := NewModelWithBackend(backend, monitor.New(backend))
-	if interval >= 100*time.Millisecond && interval <= time.Minute {
-		m.interval = interval
+	if settings.RefreshInterval >= 100*time.Millisecond && settings.RefreshInterval <= time.Minute {
+		m.interval = settings.RefreshInterval
 	}
+	m.defaultProvider = string(launchProviders[launchProviderIndex(settings.DefaultProvider)])
+	m.projects = append([]config.Project{}, settings.Projects...)
 	return m
 }
 
@@ -175,10 +184,11 @@ func NewModelWithBackend(backend tmux.Backend, sessionMonitor SessionMonitor) Mo
 	// Disable lipgloss word-wrap so raw ANSI escape sequences pass through intact.
 	vp.Style = lipgloss.NewStyle()
 	return Model{
-		viewport: vp,
-		interval: config.DefaultRefreshInterval,
-		backend:  backend,
-		monitor:  sessionMonitor,
+		viewport:        vp,
+		defaultProvider: "claude",
+		interval:        config.DefaultRefreshInterval,
+		backend:         backend,
+		monitor:         sessionMonitor,
 	}
 }
 
