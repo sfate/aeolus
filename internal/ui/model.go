@@ -31,76 +31,6 @@ type killPaneMsg struct {
 	err    error
 }
 
-// ---- Styles ------------------------------------------------------------------
-
-var (
-	colorBorder     = lipgloss.Color("#444444")
-	colorHeaderBg   = lipgloss.Color("#1A3A5C")
-	colorPermission = lipgloss.Color("#FFB347")
-	colorPermBg     = lipgloss.Color("#3D2E00")
-	colorQuestion   = lipgloss.Color("#C792EA")
-	colorQuestionBg = lipgloss.Color("#2D1A3D")
-	colorWorking    = lipgloss.Color("#00CFCF")
-	colorIdle       = lipgloss.Color("#5AF78E")
-	colorNoClaud    = lipgloss.Color("#666666")
-	colorSelected   = lipgloss.Color("#1A1A2E")
-	colorHelp       = lipgloss.Color("#555555")
-	colorError      = lipgloss.Color("#FF5555")
-
-	styleHeader = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#FFFFFF")).
-			Background(colorHeaderBg).
-			Padding(0, 2)
-
-	styleBorder = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(colorBorder)
-
-	styleHelp = lipgloss.NewStyle().
-			Foreground(colorHelp).
-			Padding(0, 1)
-
-	stylePermWarning = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(colorPermission)
-
-	// stylePermBox = lipgloss.NewStyle().
-	// 		Border(lipgloss.RoundedBorder()).
-	// 		BorderForeground(colorPermission).
-	// 		Padding(1, 2)
-
-	stylePermBorder = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(colorPermission)
-
-	styleQuestionBorder = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(colorQuestion)
-
-	styleQuestionWarning = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(colorQuestion)
-)
-
-// statusStyle returns a lipgloss style for the given status.
-func statusStyle(s monitor.Status) lipgloss.Style {
-	switch s {
-	case monitor.StatusPermission:
-		return lipgloss.NewStyle().Bold(true).Foreground(colorPermission)
-	case monitor.StatusQuestion:
-		return lipgloss.NewStyle().Bold(true).Foreground(colorQuestion)
-	case monitor.StatusWorking:
-		return lipgloss.NewStyle().Foreground(colorWorking)
-	case monitor.StatusIdle:
-		return lipgloss.NewStyle().Foreground(colorIdle)
-	case monitor.StatusNoClaud:
-		return lipgloss.NewStyle().Foreground(colorNoClaud)
-	default:
-		return lipgloss.NewStyle().Foreground(colorNoClaud)
-	}
-}
-
 // statusIcon returns the icon for the given status.
 func statusIcon(s monitor.Status) string {
 	switch s {
@@ -134,6 +64,7 @@ type SessionMonitor interface {
 
 // Model is the main Bubble Tea model for Aeolus.
 type Model struct {
+	theme           dashboardTheme
 	interval        time.Duration
 	projects        []config.Project
 	defaultProvider string
@@ -188,15 +119,19 @@ func NewModelWithConfig(settings config.Config) Model {
 	}
 	m.defaultProvider = string(launchProviders[launchProviderIndex(settings.DefaultProvider)])
 	m.projects = append([]config.Project{}, settings.Projects...)
+	m.theme = newDashboardTheme(settings.Theme)
+	m.viewport.Style = m.theme.renderer.NewStyle()
 	return m
 }
 
 // NewModelWithBackend creates a TUI with injectable transport and state detection.
 func NewModelWithBackend(backend tmux.Backend, sessionMonitor SessionMonitor) Model {
+	theme := newDashboardTheme("dark")
 	vp := viewport.New(80, 20)
 	// Disable lipgloss word-wrap so raw ANSI escape sequences pass through intact.
-	vp.Style = lipgloss.NewStyle()
+	vp.Style = theme.renderer.NewStyle()
 	return Model{
+		theme:           theme,
 		viewport:        vp,
 		defaultProvider: "claude",
 		interval:        config.DefaultRefreshInterval,
@@ -588,19 +523,19 @@ func (m *Model) contentPaneText() string {
 
 	if m.confirmKill == s.Pane.PaneID {
 		var sb strings.Builder
-		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(colorError).Render("KILL PANE?") + "\n")
+		sb.WriteString(m.theme.renderer.NewStyle().Bold(true).Foreground(m.theme.colorError).Render("KILL PANE?") + "\n")
 		sb.WriteString(strings.Repeat("─", 36) + "\n")
 		sb.WriteString(fmt.Sprintf("  Pane:    %s\n", s.Pane.PaneID))
 		sb.WriteString(fmt.Sprintf("  Session: %s\n", s.Pane.SessionName))
 		sb.WriteString(fmt.Sprintf("  Window:  %s\n", s.Pane.WindowName))
 		sb.WriteString(strings.Repeat("─", 36) + "\n")
 		sb.WriteString(
-			lipgloss.NewStyle().Bold(true).Foreground(colorError).Render("  [y] Kill pane") +
+			m.theme.renderer.NewStyle().Bold(true).Foreground(m.theme.colorError).Render("  [y] Kill pane") +
 				"     " +
-				lipgloss.NewStyle().Bold(true).Foreground(colorIdle).Render("[n/esc] Cancel") + "\n",
+				m.theme.renderer.NewStyle().Bold(true).Foreground(m.theme.colorIdle).Render("[n/esc] Cancel") + "\n",
 		)
 		sb.WriteString("\n")
-		sb.WriteString(lipgloss.NewStyle().Foreground(colorHelp).Render("─── context ───") + "\n")
+		sb.WriteString(m.theme.renderer.NewStyle().Foreground(m.theme.colorHelp).Render("─── context ───") + "\n")
 		sb.WriteString(tailLines(s.Content, 15))
 		return sb.String()
 	}
@@ -609,7 +544,7 @@ func (m *Model) contentPaneText() string {
 		var sb strings.Builder
 		req := s.Request
 
-		sb.WriteString(stylePermWarning.Render("⚠  PERMISSION REQUEST") + "\n")
+		sb.WriteString(m.theme.stylePermWarning.Render("⚠  PERMISSION REQUEST") + "\n")
 		sb.WriteString(strings.Repeat("─", 36) + "\n")
 		if req != nil {
 			if req.Tool != "" {
@@ -621,33 +556,33 @@ func (m *Model) contentPaneText() string {
 		}
 		sb.WriteString(strings.Repeat("─", 36) + "\n")
 		sb.WriteString(
-			lipgloss.NewStyle().Bold(true).Foreground(colorIdle).Render("  [y] Approve") +
+			m.theme.renderer.NewStyle().Bold(true).Foreground(m.theme.colorIdle).Render("  [y] Approve") +
 				"     " +
-				lipgloss.NewStyle().Bold(true).Foreground(colorIdle).Render("[a] Approve all") +
+				m.theme.renderer.NewStyle().Bold(true).Foreground(m.theme.colorIdle).Render("[a] Approve all") +
 				"     " +
-				lipgloss.NewStyle().Bold(true).Foreground(colorError).Render("[n] Deny") + "\n",
+				m.theme.renderer.NewStyle().Bold(true).Foreground(m.theme.colorError).Render("[n] Deny") + "\n",
 		)
 		sb.WriteString("\n")
-		sb.WriteString(lipgloss.NewStyle().Foreground(colorHelp).Render("─── context ───") + "\n")
+		sb.WriteString(m.theme.renderer.NewStyle().Foreground(m.theme.colorHelp).Render("─── context ───") + "\n")
 		sb.WriteString(tailLines(s.Content, 15))
 		return sb.String()
 	}
 
 	if s.CanRespond() && s.Status == monitor.StatusQuestion {
 		var sb strings.Builder
-		sb.WriteString(styleQuestionWarning.Render("?  QUESTION") + "\n")
+		sb.WriteString(m.theme.styleQuestionWarning.Render("?  QUESTION") + "\n")
 		sb.WriteString(strings.Repeat("─", 36) + "\n")
 		if s.Question != nil && s.Question.Text != "" {
 			sb.WriteString(fmt.Sprintf("  %s\n", s.Question.Text))
 		}
 		sb.WriteString(strings.Repeat("─", 36) + "\n")
 		sb.WriteString(
-			lipgloss.NewStyle().Bold(true).Foreground(colorIdle).Render("  [y] Yes") +
+			m.theme.renderer.NewStyle().Bold(true).Foreground(m.theme.colorIdle).Render("  [y] Yes") +
 				"     " +
-				lipgloss.NewStyle().Bold(true).Foreground(colorError).Render("[n] No") + "\n",
+				m.theme.renderer.NewStyle().Bold(true).Foreground(m.theme.colorError).Render("[n] No") + "\n",
 		)
 		sb.WriteString("\n")
-		sb.WriteString(lipgloss.NewStyle().Foreground(colorHelp).Render("─── context ───") + "\n")
+		sb.WriteString(m.theme.renderer.NewStyle().Foreground(m.theme.colorHelp).Render("─── context ───") + "\n")
 		sb.WriteString(tailLines(s.Content, 15))
 		return sb.String()
 	}
@@ -664,6 +599,14 @@ func (m *Model) contentPaneText() string {
 
 // View renders the full TUI.
 func (m Model) View() string {
+	view := m.view()
+	if m.theme.name == "monochrome" {
+		return ansi.Strip(view)
+	}
+	return view
+}
+
+func (m Model) view() string {
 	if m.quitting {
 		return ""
 	}
@@ -684,15 +627,15 @@ func (m Model) View() string {
 
 func (m Model) screenView() string {
 	// Header
-	title := styleHeader.Render(" Aeolus - Agent Session Manager ")
+	title := m.theme.styleHeader.Render(" Aeolus - Agent Session Manager ")
 	ts := ""
 	if !m.lastRefresh.IsZero() {
-		ts = lipgloss.NewStyle().Foreground(colorHelp).Render(
+		ts = m.theme.renderer.NewStyle().Foreground(m.theme.colorHelp).Render(
 			fmt.Sprintf(" last refresh: %s", m.lastRefresh.Format("15:04:05")),
 		)
 	}
 	header := fitLine(lipgloss.JoinHorizontal(lipgloss.Top, title, ts), m.width)
-	header += "\n" + fitLine(styleHelp.Render(m.filterSummary()), m.width)
+	header += "\n" + fitLine(m.theme.styleHelp.Render(m.filterSummary()), m.width)
 	if m.preferenceNotice != "" {
 		header += "\n" + safeReviewText(m.preferenceNotice)
 	}
@@ -710,16 +653,16 @@ func (m Model) screenView() string {
 
 	// Error state
 	if m.tmuxMissing {
-		errMsg := lipgloss.NewStyle().
+		errMsg := m.theme.renderer.NewStyle().
 			Bold(true).
-			Foreground(colorError).
+			Foreground(m.theme.colorError).
 			Padding(2, 4).
 			Render("tmux server is not running.\n\nStart a tmux session and relaunch Aeolus.")
 		return lipgloss.JoinVertical(lipgloss.Left, header, errMsg, m.helpBar())
 	}
 	if m.err != nil {
-		errMsg := lipgloss.NewStyle().
-			Foreground(colorError).
+		errMsg := m.theme.renderer.NewStyle().
+			Foreground(m.theme.colorError).
 			Padding(1, 2).
 			Render("Error: " + m.err.Error())
 		return lipgloss.JoinVertical(lipgloss.Left, header, errMsg, m.helpBar())
@@ -729,7 +672,7 @@ func (m Model) screenView() string {
 
 	// Session list
 	listContent := m.renderSessionList(lw, lh)
-	listPane := styleBorder.
+	listPane := m.theme.styleBorder.
 		Width(lw).
 		Height(lh).
 		Render(listContent)
@@ -739,21 +682,21 @@ func (m Model) screenView() string {
 	if m.cursor < len(m.sessions) {
 		switch m.confirmKill {
 		case m.sessions[m.cursor].Pane.PaneID:
-			contentBorderStyle = lipgloss.NewStyle().
+			contentBorderStyle = m.theme.renderer.NewStyle().
 				Border(lipgloss.RoundedBorder()).
-				BorderForeground(colorError)
+				BorderForeground(m.theme.colorError)
 		default:
 			switch m.sessions[m.cursor].Status {
 			case monitor.StatusPermission:
-				contentBorderStyle = stylePermBorder
+				contentBorderStyle = m.theme.stylePermBorder
 			case monitor.StatusQuestion:
-				contentBorderStyle = styleQuestionBorder
+				contentBorderStyle = m.theme.styleQuestionBorder
 			default:
-				contentBorderStyle = styleBorder
+				contentBorderStyle = m.theme.styleBorder
 			}
 		}
 	} else {
-		contentBorderStyle = styleBorder
+		contentBorderStyle = m.theme.styleBorder
 	}
 	contentPane := contentBorderStyle.
 		Width(cw).
@@ -762,7 +705,7 @@ func (m Model) screenView() string {
 
 	// Wide terminals keep the list beside output. Narrow terminals stack them.
 	panes := lipgloss.JoinHorizontal(lipgloss.Top,
-		lipgloss.NewStyle().MarginRight(1).Render(listPane),
+		m.theme.renderer.NewStyle().MarginRight(1).Render(listPane),
 		contentPane,
 	)
 
@@ -785,8 +728,8 @@ func (m Model) screenView() string {
 // renderSessionList builds the session list content.
 func (m Model) renderSessionList(width, height int) string {
 	if len(m.sessions) == 0 {
-		return lipgloss.NewStyle().
-			Foreground(colorNoClaud).
+		return m.theme.renderer.NewStyle().
+			Foreground(m.theme.colorNoClaud).
 			Italic(true).
 			Render(ansi.Truncate("No sessions match the current filters", max(0, width), "…"))
 	}
@@ -802,7 +745,7 @@ func (m Model) renderSessionList(width, height int) string {
 		s := m.sessions[i]
 		selected := i == m.cursor
 
-		icon := statusStyle(s.Status).Render(statusIcon(s.Status))
+		icon := m.statusStyle(s.Status).Render(statusIcon(s.Status))
 		name := sessionLabel(s)
 		statusTag := fmt.Sprintf("[%s]", s.Status.String())
 
@@ -811,19 +754,19 @@ func (m Model) renderSessionList(width, height int) string {
 		name = ansi.Truncate(name, nameWidth, "…")
 		name += strings.Repeat(" ", max(0, nameWidth-ansi.StringWidth(name)))
 
-		statusColored := statusStyle(s.Status).Render(statusTag)
+		statusColored := m.statusStyle(s.Status).Render(statusTag)
 		row := fmt.Sprintf("%s%s  %s", icon, name, statusColored)
 
 		if selected && s.Status == monitor.StatusPermission {
-			row = lipgloss.NewStyle().Background(colorPermBg).Bold(true).Render(row)
+			row = m.theme.renderer.NewStyle().Background(m.theme.colorPermBg).Bold(true).Render(row)
 		} else if selected && s.Status == monitor.StatusQuestion {
-			row = lipgloss.NewStyle().Background(colorQuestionBg).Bold(true).Render(row)
+			row = m.theme.renderer.NewStyle().Background(m.theme.colorQuestionBg).Bold(true).Render(row)
 		} else if selected {
-			row = lipgloss.NewStyle().Background(colorSelected).Bold(true).Render(row)
+			row = m.theme.renderer.NewStyle().Background(m.theme.colorSelected).Bold(true).Render(row)
 		} else if s.CanRespond() && s.Status == monitor.StatusPermission {
-			row = lipgloss.NewStyle().Background(colorPermBg).Render(row)
+			row = m.theme.renderer.NewStyle().Background(m.theme.colorPermBg).Render(row)
 		} else if s.CanRespond() && s.Status == monitor.StatusQuestion {
-			row = lipgloss.NewStyle().Background(colorQuestionBg).Render(row)
+			row = m.theme.renderer.NewStyle().Background(m.theme.colorQuestionBg).Render(row)
 		}
 
 		// Cursor arrow
@@ -841,30 +784,30 @@ func (m Model) renderSessionList(width, height int) string {
 func (m Model) helpBar() string {
 	responses := ""
 	if m.response != nil {
-		return styleHelp.Render("Sending response to " + m.response.session.Pane.PaneID + " - response keys disabled until delivery completes")
+		return m.theme.styleHelp.Render("Sending response to " + m.response.session.Pane.PaneID + " - response keys disabled until delivery completes")
 	}
 	if m.cursor < len(m.sessions) && m.sessions[m.cursor].CanRespond() &&
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
-	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [S] Save filters  [g] Git review  [W] Worktree  [f] Filter  [/] Search  [i] Compose  [?] Help  [ctrl+k] Palette  [q] Quit")
+	return m.theme.styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [S] Save filters  [g] Git review  [W] Worktree  [f] Filter  [/] Search  [i] Compose  [?] Help  [ctrl+k] Palette  [q] Quit")
 }
 
 func (m Model) footer() string {
 	if m.composer.active {
 		if m.composer.library.active {
 			if m.composer.library.naming {
-				return styleHelp.Render("[enter] Save unique name  [esc] Back to library")
+				return m.theme.styleHelp.Render("[enter] Save unique name  [esc] Back to library")
 			}
-			return styleHelp.Render("[j/k] Select  [enter] Insert  [s] Save draft  [ctrl+r] Reload  [pgup/pgdown] Preview  [esc] Back")
+			return m.theme.styleHelp.Render("[j/k] Select  [enter] Insert  [s] Save draft  [ctrl+r] Reload  [pgup/pgdown] Preview  [esc] Back")
 		}
 		if m.composer.context.active {
-			return styleHelp.Render("[enter] Attach for review  [esc] Back to draft")
+			return m.theme.styleHelp.Render("[enter] Attach for review  [esc] Back to draft")
 		}
-		return styleHelp.Render("[enter] New line  [ctrl+s] Send  [ctrl+o] Attach file  [ctrl+p] Prompts  [esc] Cancel")
+		return m.theme.styleHelp.Render("[enter] New line  [ctrl+s] Send  [ctrl+o] Attach file  [ctrl+p] Prompts  [esc] Cancel")
 	}
 	if m.filters.editing {
-		return styleHelp.Render("[tab] Controls/directory text  [enter] Apply  [esc] Cancel")
+		return m.theme.styleHelp.Render("[tab] Controls/directory text  [enter] Apply  [esc] Cancel")
 	}
 	if m.search.active() {
 		return m.searchHelp()

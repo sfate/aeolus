@@ -152,7 +152,7 @@ func (m Model) searchHelp() string {
 	query := m.search.query
 	if m.search.editing {
 		query = focusInput(query, m.search.position, max(1, m.width-10))
-		return styleHelp.Render(fmt.Sprintf("Search: %s  (%d/%d matching lines)  [enter] Keep  [esc] Cancel", query, current, len(m.search.matches)))
+		return m.theme.styleHelp.Render(fmt.Sprintf("Search: %s  (%d/%d matching lines)  [enter] Keep  [esc] Cancel", query, current, len(m.search.matches)))
 	}
-	return styleHelp.Render(fmt.Sprintf("Search: %s  (%d/%d matching lines)  [ctrl+n/p] Next/previous  [/] Edit  [esc] Clear", query, current, len(m.search.matches)))
+	return m.theme.styleHelp.Render(fmt.Sprintf("Search: %s  (%d/%d matching lines)  [ctrl+n/p] Next/previous  [/] Edit  [esc] Clear", query, current, len(m.search.matches)))
 }
