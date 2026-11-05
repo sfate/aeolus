@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/sfate/aeolus/internal/config"
 	"github.com/sfate/aeolus/internal/monitor"
@@ -119,10 +120,7 @@ func statusIcon(s monitor.Status) string {
 // sessionLabel builds the display label for a session.
 func sessionLabel(s monitor.Session) string {
 	name := fmt.Sprintf("[%s] %s/%s", s.Provider, s.Pane.SessionName, s.Pane.WindowName)
-	if len(name) > 20 {
-		name = name[:19] + "…"
-	}
-	return name
+	return ansi.Truncate(name, 20, "…")
 }
 
 // ---- Model -------------------------------------------------------------------
@@ -230,11 +228,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.viewport.Width = contentPaneWidth(m.width)
-		m.viewport.Height = contentPaneHeight(m.height)
+		m.resizeViewport()
 		if m.review.active {
-			m.review.viewport.Width = max(20, m.width-4)
-			m.review.viewport.Height = max(5, m.height-8)
+			m.review.viewport.Width = max(1, m.width)
+			m.review.viewport.Height = max(1, m.height-7)
+			m.review.viewport.SetYOffset(m.review.viewport.YOffset)
 		}
 		m.updateViewport()
 		return m, nil
@@ -293,6 +291,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case promptSentMsg:
 		m.promptSent(msg)
 		return m, nil
+
+	case tea.MouseMsg:
+		if m.review.active {
+			var cmd tea.Cmd
+			m.review.viewport, cmd = m.review.viewport.Update(msg)
+			return m, cmd
+		}
 
 	case tea.KeyMsg:
 		if m.confirmKill != "" {
@@ -454,28 +459,20 @@ func removePane(sessions []monitor.Session, paneID string) []monitor.Session {
 // ---- Layout helpers ----------------------------------------------------------
 
 func listPaneWidth(total int) int {
-	w := total*2/5 - 4
-	if w < 24 {
-		w = 24
+	if total < 80 {
+		return max(1, total-2)
 	}
-	return w
+	return max(1, total*2/5-2)
 }
 
 func contentPaneWidth(total int) int {
-	w := total - listPaneWidth(total) - 8
-	if w < 20 {
-		w = 20
+	if total < 80 {
+		return max(1, total-2)
 	}
-	return w
+	return max(1, total-listPaneWidth(total)-5)
 }
 
-func contentPaneHeight(total int) int {
-	h := total - 8 // header + help bar + borders
-	if h < 5 {
-		h = 5
-	}
-	return h
-}
+func contentPaneHeight(total int) int { return max(1, total-7) }
 
 // ---- Content helpers ---------------------------------------------------------
 
@@ -483,6 +480,7 @@ func contentPaneHeight(total int) int {
 // - permission sessions: top (so the parsed summary is immediately visible)
 // - others: bottom (so the most recent terminal output is visible)
 func (m *Model) updateViewport() {
+	m.resizeViewport()
 	if m.composer.active {
 		m.updateComposerViewport()
 		return
@@ -615,11 +613,16 @@ func (m Model) View() string {
 	if m.quitting {
 		return ""
 	}
-
-	if m.width == 0 {
+	if m.width <= 0 || m.height <= 0 {
 		return "Loading…"
 	}
+	if m.width < 24 || m.height < 12 {
+		return fitScreen("Resize to at least 24x12.\n[q] Quit", m.width, m.height)
+	}
+	return fitScreen(m.screenView(), m.width, m.height)
+}
 
+func (m Model) screenView() string {
 	// Header
 	title := styleHeader.Render(" Aeolus - Agent Session Manager ")
 	ts := ""
@@ -628,8 +631,8 @@ func (m Model) View() string {
 			fmt.Sprintf(" last refresh: %s", m.lastRefresh.Format("15:04:05")),
 		)
 	}
-	header := lipgloss.JoinHorizontal(lipgloss.Top, title, ts)
-	header += "\n" + styleHelp.Render(m.filterSummary())
+	header := fitLine(lipgloss.JoinHorizontal(lipgloss.Top, title, ts), m.width)
+	header += "\n" + fitLine(styleHelp.Render(m.filterSummary()), m.width)
 
 	if m.review.active {
 		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.gitReviewView())
@@ -656,15 +659,13 @@ func (m Model) View() string {
 		return lipgloss.JoinVertical(lipgloss.Left, header, errMsg, m.helpBar())
 	}
 
-	lw := listPaneWidth(m.width)
-	cw := contentPaneWidth(m.width)
-	ph := contentPaneHeight(m.height)
+	lw, cw, lh, ph := m.paneDimensions()
 
 	// Session list
-	listContent := m.renderSessionList(lw, ph)
+	listContent := m.renderSessionList(lw, lh)
 	listPane := styleBorder.
 		Width(lw).
-		Height(ph).
+		Height(lh).
 		Render(listContent)
 
 	// Content pane — dimensions/content are managed in Update(); View() just renders.
@@ -693,18 +694,25 @@ func (m Model) View() string {
 		Height(ph).
 		Render(m.viewport.View())
 
-	// Join panes horizontally
+	// Wide terminals keep the list beside output. Narrow terminals stack them.
 	panes := lipgloss.JoinHorizontal(lipgloss.Top,
 		lipgloss.NewStyle().MarginRight(1).Render(listPane),
 		contentPane,
 	)
+
+	if m.width < 80 {
+		panes = lipgloss.JoinVertical(lipgloss.Left, listPane, contentPane)
+	}
+	if m.composer.active || m.filters.editing {
+		panes = contentPane
+	}
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		header,
 		"",
 		panes,
 		"",
-		m.footer(),
+		fitLine(m.layoutFooter(), m.width),
 	)
 }
 
@@ -714,7 +722,7 @@ func (m Model) renderSessionList(width, height int) string {
 		return lipgloss.NewStyle().
 			Foreground(colorNoClaud).
 			Italic(true).
-			Render("No sessions match the current filters")
+			Render(ansi.Truncate("No sessions match the current filters", max(0, width), "…"))
 	}
 
 	var sb strings.Builder
@@ -732,16 +740,10 @@ func (m Model) renderSessionList(width, height int) string {
 		name := sessionLabel(s)
 		statusTag := fmt.Sprintf("[%s]", s.Status.String())
 
-		// Pad name to fixed width for alignment
-		nameWidth := width - 4 - len(statusTag) - 3
-		if nameWidth < 1 {
-			nameWidth = 1
-		}
-		if len(name) > nameWidth {
-			name = name[:nameWidth-1] + "…"
-		} else {
-			name = fmt.Sprintf("%-*s", nameWidth, name)
-		}
+		// Measure terminal cells, preserving complete Unicode grapheme clusters.
+		nameWidth := max(0, width-ansi.StringWidth(statusIcon(s.Status))-ansi.StringWidth(statusTag)-4)
+		name = ansi.Truncate(name, nameWidth, "…")
+		name += strings.Repeat(" ", max(0, nameWidth-ansi.StringWidth(name)))
 
 		statusColored := statusStyle(s.Status).Render(statusTag)
 		row := fmt.Sprintf("%s%s  %s", icon, name, statusColored)
@@ -763,7 +765,7 @@ func (m Model) renderSessionList(width, height int) string {
 		if selected {
 			cursor = "▶ "
 		}
-		sb.WriteString(cursor + row + "\n")
+		sb.WriteString(ansi.Truncate(cursor+row, max(0, width), "…") + "\n")
 	}
 
 	return strings.TrimRight(sb.String(), "\n")
