@@ -153,6 +153,7 @@ type Model struct {
 	contextRequest uint64
 	filters        sessionFilters
 	allSessions    []monitor.Session
+	review         gitReviewState
 }
 
 // NewModel creates a new Model with sensible defaults.
