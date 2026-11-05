@@ -22,6 +22,10 @@ Track implementation and review progress in [the parent issue](https://github.co
 
 Issue #36 adds explicit creation of a new branch and isolated checkout followed by an agent launch. Creation failures retain artifacts; launch failures retry launch only. Read-only Git review remains available independently.
 
+## Shell delivery
+
+Shell-session foundation is tracked in [child #47](https://github.com/sfate/aeolus/issues/47). Explicit command event integration and command-block browsing remain separate slices of #10.
+
 ## Review contract
 
 Each implementation PR links its issue, describes user-visible behavior, records automated and manual verification, and remains open for review. Split oversized issues before implementation. Dependent changes must identify their base PR and remain independently understandable.

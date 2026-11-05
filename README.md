@@ -6,11 +6,11 @@ In Greek mythology, **Aeolus** is the keeper of the winds - he holds them in a c
 
 *Clouds don't move themselves.*
 
-Aeolus is a TUI dashboard for managing [Claude Code](https://claude.ai/code), [Codex CLI](https://learn.chatgpt.com/docs/codex/cli), and [Gemini CLI](https://geminicli.com/docs/get-started/installation/) sessions running across tmux panes. It shows provider identity and live output, and lets you approve or deny Claude permission requests without switching panes.
+Aeolus is a TUI dashboard for managing [Claude Code](https://claude.ai/code), [Codex CLI](https://learn.chatgpt.com/docs/codex/cli), [Gemini CLI](https://geminicli.com/docs/get-started/installation/), and explicitly managed shell sessions across tmux panes. It shows provider identity and live output, and lets you approve or deny Claude permission requests without switching panes.
 
 ## Features
 
-- Lists tmux panes running Claude Code, Codex CLI, or Gemini CLI (other panes are hidden)
+- Lists tmux panes running Claude Code, Codex CLI, or Gemini CLI, plus shells launched through Aeolus (other panes are hidden)
 - Shows Claude session status: idle, working, waiting for permission, or waiting for an answer
 - Approve / deny Claude requests with a single keypress
 - Shows Codex and Gemini activity as unknown; use `enter` to inspect and respond in the pane
@@ -63,6 +63,12 @@ Approval and yes/no response keys run asynchronously. While a response is being 
 Press `c` to open the launch form. Use tab or shift+tab to choose Claude, Codex, or Gemini, edit the project directory, and press enter. The directory must exist and the selected agent must be on PATH. Absolute paths, relative paths, and `~/` paths are supported. Launch creates a uniquely named detached tmux session and selects it in the dashboard. It works outside tmux and can start a missing tmux server. Agent authentication and setup remain in the agent itself; open its pane to interact.
 
 Press `R` to rename the window containing the selected pane. This affects all panes sharing that window. Names must contain 1 to 80 characters and cannot contain control characters or `|`. Both forms support cursor movement, home/end, backspace/delete, and ctrl+u. Esc cancels before submission; submitted operations stay locked until completion. Errors retain the form input for correction. Existing enter-to-pane navigation and confirmed pane termination remain available outside the forms.
+
+## Managed shell sessions
+
+Press `c`, use tab or shift+tab to select **Shell (zsh)**, choose a directory, and press enter. Aeolus launches an interactive zsh in its own tmux session and marks that pane explicitly. Unrelated shell panes remain hidden. The shell appears in the session list and has a Shell filter choice. Launch requires `zsh` on PATH; your normal zsh startup files and shell history settings still apply. Aeolus does not install hooks, modify startup files, or save command history in this slice.
+
+Navigation, rename, confirmed termination, output search, and the composer work with managed shells. In a shell composer, `ctrl+s` sends text followed by Enter and can execute commands; review the command before sending. Approval shortcuts are unavailable for shells. If a recognized agent starts inside a managed pane, its provider and existing agent behavior take priority. Shell activity remains unknown until explicit shell integration is available; command boundaries are never guessed from terminal text.
 
 ## Git review
 
@@ -127,7 +133,7 @@ While editing, navigation and action keys become query text; `esc` restores the 
 
 - tmux (pane metadata framing and working-directory capture tested with tmux 3.5a)
 - go v1.26.4 or higher
-- One or more `claude`, `codex`, or `gemini` sessions running inside tmux panes
+- A `claude`, `codex`, or `gemini` session inside tmux, or `zsh` on PATH to launch a managed shell
 
 ## Provider detection
 
