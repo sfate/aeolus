@@ -2,15 +2,22 @@ package ui
 
 import (
 	"fmt"
+	"strings"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/sfate/aeolus/internal/monitor"
 )
 
 // Index zero means all values; later entries select one provider or status.
-type filterChoice struct{ provider, status int }
+type filterChoice struct {
+	provider, status int
+	directory        string
+}
 type sessionFilters struct {
 	editing        bool
+	projectEditing bool
+	projectCursor  int
 	applied, draft filterChoice
 }
 
@@ -18,7 +25,7 @@ var filterProviders = []monitor.Provider{monitor.ProviderUnknown, monitor.Provid
 var filterStatuses = []monitor.Status{monitor.Status(-1), monitor.StatusUnknown, monitor.StatusIdle, monitor.StatusWorking, monitor.StatusPermission, monitor.StatusQuestion}
 
 func (f filterChoice) matches(s monitor.Session) bool {
-	return (f.provider == 0 || s.Provider == filterProviders[f.provider]) && (f.status == 0 || s.Status == filterStatuses[f.status])
+	return (f.provider == 0 || s.Provider == filterProviders[f.provider]) && (f.status == 0 || s.Status == filterStatuses[f.status]) && strings.Contains(s.Pane.CurrentPath, f.directory)
 }
 func (f filterChoice) description() string {
 	provider, status := "All", "All"
@@ -28,7 +35,7 @@ func (f filterChoice) description() string {
 	if f.status != 0 {
 		status = filterStatuses[f.status].String()
 	}
-	return fmt.Sprintf("Provider: %s  Status: %s", provider, status)
+	return fmt.Sprintf("Provider: %s  Status: %s  Working dir contains: %q", provider, status, f.directory)
 }
 
 func (m Model) selectedPaneID() string {
@@ -88,6 +95,18 @@ func (m *Model) filterKey(msg tea.KeyMsg) bool {
 		}
 		m.filters.editing = true
 		m.filters.draft = m.filters.applied
+		m.filters.projectEditing = false
+		m.filters.projectCursor = len([]rune(m.filters.draft.directory))
+		m.updateViewport()
+		return true
+	}
+	if msg.String() == "tab" {
+		m.filters.projectEditing = !m.filters.projectEditing
+		m.updateViewport()
+		return true
+	}
+	if m.filters.projectEditing && msg.String() != "enter" && msg.String() != "esc" && msg.String() != "ctrl+c" {
+		m.editProjectFilter(msg)
 		m.updateViewport()
 		return true
 	}
@@ -116,5 +135,70 @@ func (m Model) filterSummary() string {
 	if m.allSessions == nil {
 		total = len(m.sessions)
 	}
-	return fmt.Sprintf("%s  Sessions: %d/%d", m.filters.applied.description(), len(m.sessions), total)
+	summary := fmt.Sprintf("%s  Sessions: %d/%d", m.filters.applied.description(), len(m.sessions), total)
+	if m.cursor >= 0 && m.cursor < len(m.sessions) {
+		summary += fmt.Sprintf("  Selected dir: %q", m.sessions[m.cursor].Pane.CurrentPath)
+	}
+	return summary
+}
+
+func (m *Model) editProjectFilter(msg tea.KeyMsg) {
+	r := []rune(m.filters.draft.directory)
+	p := m.filters.projectCursor
+	switch msg.String() {
+	case "left":
+		if p > 0 {
+			p--
+		}
+	case "right":
+		if p < len(r) {
+			p++
+		}
+	case "home", "ctrl+a":
+		p = 0
+	case "end", "ctrl+e":
+		p = len(r)
+	case "ctrl+u":
+		r = nil
+		p = 0
+	case "backspace", "ctrl+h":
+		if p > 0 {
+			r = append(r[:p-1], r[p:]...)
+			p--
+		}
+	case "delete":
+		if p < len(r) {
+			r = append(r[:p], r[p+1:]...)
+		}
+	default:
+		if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace {
+			input := msg.Runes
+			if msg.Type == tea.KeySpace {
+				input = []rune{' '}
+			}
+			clean := make([]rune, 0, len(input))
+			for _, c := range input {
+				if !unicode.IsControl(c) {
+					clean = append(clean, c)
+				}
+			}
+			next := append([]rune{}, r[:p]...)
+			next = append(next, clean...)
+			next = append(next, r[p:]...)
+			r = next
+			p += len(clean)
+		}
+	}
+	m.filters.draft.directory = string(r)
+	m.filters.projectCursor = p
+}
+
+func (m Model) filterModalText() string {
+	text := "Filter sessions\n\n" + m.filters.draft.description() + "\n\n[tab] Toggle controls / working-directory text\n"
+	if m.filters.projectEditing {
+		r := []rune(m.filters.draft.directory)
+		p := m.filters.projectCursor
+		return text + "Editing working-directory substring: " + string(r[:p]) + "▏" + string(r[p:]) + "\n[ctrl+u] Clear text  [enter] Apply  [esc] Cancel"
+	}
+	return text + "[p] Cycle provider  [s] Cycle status\n[c] Clear all  [enter] Apply  [esc] Cancel"
 }

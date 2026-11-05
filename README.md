@@ -83,7 +83,7 @@ While editing, navigation and action keys become query text; `esc` restores the 
 
 ## Requirements
 
-- tmux
+- tmux (pane metadata framing and working-directory capture tested with tmux 3.5a)
 - go v1.26.4 or higher
 - One or more `claude`, `codex`, or `gemini` sessions running inside tmux panes
 
@@ -97,6 +97,6 @@ Detection uses executable names and known npm entry points in the pane process t
 
 ## Session filters
 
-Press `f` to open session filters. Press `p` to cycle providers and `s` to cycle statuses, then `enter` to apply. Press `c` to clear both choices or `esc` to discard draft changes. The header shows active filters and visible/total session counts. Filtering keeps the selected pane when it remains visible and retains hidden sessions so clearing filters restores them. An empty result does not send actions to hidden panes. Output search remains scoped to the visible selected pane; typing `f` while editing a search query inserts text instead of opening filters. Project filters remain planned until project metadata is available.
+Press `f` to open session filters. Press `p` to cycle providers and `s` to cycle statuses, then `enter` to apply. Press `c` to clear both choices or `esc` to discard draft changes. The header shows active filters and visible/total session counts. Filtering keeps the selected pane when it remains visible and retains hidden sessions so clearing filters restores them. An empty result does not send actions to hidden panes. Output search remains scoped to the visible selected pane; typing `f` while editing a search query inserts text instead of opening filters. Press `tab` in the filter modal to edit a case-sensitive working-directory substring, then `tab` again to return to provider/status controls. While editing the directory, ordinary letters (including `p`, `s`, and `c`) enter text; `ctrl+u` clears it. Enter applies all choices and Escape discards the draft. An empty substring matches all directories; sessions with unknown directories do not match a nonempty substring. These paths are the pane working directory reported by tmux, not a Git repository root. The header shows the selected pane directory with control characters quoted.
 
 Launching a session clears active provider/status filters so the new session is visible and selected.
