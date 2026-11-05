@@ -174,7 +174,11 @@ func (m *Model) promptSent(msg promptSentMsg) {
 }
 
 func (m Model) composerTargetAvailable() bool {
-	for _, s := range m.sessions {
+	source := m.allSessions
+	if source == nil {
+		source = m.sessions
+	}
+	for _, s := range source {
 		if s.Pane.PaneID == m.composer.paneID && s.Provider == m.composer.provider {
 			return true
 		}

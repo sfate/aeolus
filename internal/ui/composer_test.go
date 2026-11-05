@@ -88,3 +88,25 @@ func TestComposerChangedProviderAndUnicode(t *testing.T) {
 		t.Fatal("empty prompt accepted")
 	}
 }
+
+func TestComposerFilterIsolation(t *testing.T) {
+	b := &textBackend{}
+	m := NewModelWithBackend(b, &fakeMonitor{})
+	m.sessions = []monitor.Session{testSession("%1")}
+	m = key(m, t, "f")
+	m = key(m, t, "i")
+	if m.composer.active || !m.filters.editing {
+		t.Fatal("filter input opened composer")
+	}
+	m = key(m, t, "esc")
+	m = key(m, t, "i")
+	m = key(m, t, "f")
+	if m.filters.editing || m.composer.draft != "f" {
+		t.Fatal("composer input opened filters")
+	}
+	m.allSessions = append([]monitor.Session{}, m.sessions...)
+	m.sessions = nil
+	if !m.composerTargetAvailable() {
+		t.Fatal("target lookup ignored full session source")
+	}
+}

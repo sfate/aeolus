@@ -35,6 +35,7 @@ make run     # go run .
 | `n` | Deny Claude permission request / answer no |
 | `x` | Kill selected pane after confirmation |
 | `r` | Force refresh |
+| `f` | Filter sessions by provider and status |
 | `/` | Edit a captured-output search |
 | `i` | Compose a prompt for the selected session |
 | `ctrl+n` / `ctrl+p` | Next / previous matching line |
@@ -78,3 +79,7 @@ Detection uses executable names and known npm entry points in the pane process t
 ## License
 
 [MIT](LICENSE)
+
+## Session filters
+
+Press `f` to open session filters. Press `p` to cycle providers and `s` to cycle statuses, then `enter` to apply. Press `c` to clear both choices or `esc` to discard draft changes. The header shows active filters and visible/total session counts. Filtering keeps the selected pane when it remains visible and retains hidden sessions so clearing filters restores them. An empty result does not send actions to hidden panes. Output search remains scoped to the visible selected pane; typing `f` while editing a search query inserts text instead of opening filters. Project filters remain planned until project metadata is available.
