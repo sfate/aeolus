@@ -15,6 +15,7 @@ Aeolus is a TUI dashboard for managing [Claude Code](https://claude.ai/code), [C
 - Approve / deny Claude requests with a single keypress
 - Shows Codex and Gemini activity as unknown; use `enter` to inspect and respond in the pane
 - Auto-refreshes every 2 seconds by default
+- Refreshes run one at a time; requests received during a refresh queue one follow-up
 - Colored pane preview with live terminal output
 - Search the selected session capture without switching panes
 - Launch agents in a chosen directory and rename their tmux windows
