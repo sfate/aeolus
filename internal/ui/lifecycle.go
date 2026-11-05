@@ -202,7 +202,9 @@ func (m Model) finishLifecycle(msg lifecycleMsg) (tea.Model, tea.Cmd) {
 	m.err = nil
 	m.tmuxMissing = false
 	m.updateViewport()
-	return m, m.doRefresh()
+	m.refreshObsolete = m.refreshing
+	cmd := m.doRefresh()
+	return m, cmd
 }
 
 func (m Model) lifecycleView() string {
