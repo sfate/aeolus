@@ -23,6 +23,14 @@ type Lifecycle interface {
 	RenameWindow(paneID, name string) error
 }
 
+// LaunchUncertainError means tmux may have created a session; inspect before retrying.
+type LaunchUncertainError struct{ Err error }
+
+func (e *LaunchUncertainError) Error() string {
+	return e.Err.Error() + "; inspect tmux sessions before retrying"
+}
+func (e *LaunchUncertainError) Unwrap() error { return e.Err }
+
 // literalFormatArgument protects values from tmux format expansion and its
 // command separator parsing. Shell quoting is unnecessary because argv is used.
 func literalFormatArgument(value string) string {
@@ -86,15 +94,15 @@ func (Client) CreateSession(directory, command string) (Pane, error) {
 	format := "#{pane_id}\t#{session_id}\t#{session_name}\t#{window_index}"
 	out, err := lifecycleOutput("new-session", "-d", "-P", "-F", format, "-s", name, "-n", command, "-c", literalFormatArgument(directory), "--", env, executable)
 	if err != nil {
-		return Pane{}, err
+		return Pane{}, &LaunchUncertainError{Err: err}
 	}
 	fields := strings.Split(strings.TrimSpace(string(out)), "\t")
 	if len(fields) != 4 || !paneIdentifier.MatchString(fields[0]) || !sessionIdentifier.MatchString(fields[1]) {
-		return Pane{}, fmt.Errorf("session %s was created but tmux returned invalid metadata; inspect it with tmux list-sessions", name)
+		return Pane{}, &LaunchUncertainError{Err: fmt.Errorf("session %s was created but tmux returned invalid metadata", name)}
 	}
 	index, err := strconv.Atoi(fields[3])
 	if err != nil {
-		return Pane{}, fmt.Errorf("session %s was created but tmux returned an invalid window index", name)
+		return Pane{}, &LaunchUncertainError{Err: fmt.Errorf("session %s was created but tmux returned an invalid window index", name)}
 	}
 	return Pane{PaneID: fields[0], SessionID: fields[1], SessionName: fields[2], WindowIndex: index, WindowName: command, CurrentCommand: command, CurrentPath: directory}, nil
 }
