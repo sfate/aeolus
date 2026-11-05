@@ -12,6 +12,7 @@ import (
 
 	"github.com/sfate/aeolus/internal/config"
 	"github.com/sfate/aeolus/internal/monitor"
+	"github.com/sfate/aeolus/internal/preferences"
 	"github.com/sfate/aeolus/internal/tmux"
 )
 
@@ -156,15 +157,18 @@ type Model struct {
 	allSessions     []monitor.Session
 	review          gitReviewState
 
-	refreshing      bool
-	refreshQueued   bool
-	refreshObsolete bool
-	response        *pendingResponse
-	responseID      uint64
-	promptRequest   uint64
-	worktree        worktreeForm
-	help            keyboardHelp
-	palette         commandPalette
+	refreshing        bool
+	refreshQueued     bool
+	refreshObsolete   bool
+	response          *pendingResponse
+	responseID        uint64
+	promptRequest     uint64
+	worktree          worktreeForm
+	help              keyboardHelp
+	palette           commandPalette
+	preferencesSaving bool
+	preferenceNotice  string
+	preferenceSave    func(preferences.Snapshot) error
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -253,6 +257,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case worktreeLaunchedMsg:
 		return m.finishWorktreeLaunch(msg)
+	case preferencesSavedMsg:
+		m.preferencesSaving = false
+		if msg.err != nil {
+			m.preferenceNotice = fmt.Sprintf("Cannot save dashboard filters: %v", msg.err)
+		} else {
+			m.preferenceNotice = "Dashboard filters saved. Clear filters and press S to reset startup choices."
+		}
+		return m, nil
 
 	case gitReviewMsg:
 		m.finishGitReview(msg)
@@ -432,6 +444,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.String() {
+		case "S":
+			return m, m.savePreferences()
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
@@ -679,6 +693,9 @@ func (m Model) screenView() string {
 	}
 	header := fitLine(lipgloss.JoinHorizontal(lipgloss.Top, title, ts), m.width)
 	header += "\n" + fitLine(styleHelp.Render(m.filterSummary()), m.width)
+	if m.preferenceNotice != "" {
+		header += "\n" + safeReviewText(m.preferenceNotice)
+	}
 
 	if m.worktree.active {
 		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.worktreeView())
@@ -830,7 +847,7 @@ func (m Model) helpBar() string {
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
-	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [g] Git review  [W] Worktree  [f] Filter  [/] Search  [i] Compose  [?] Help  [ctrl+k] Palette  [q] Quit")
+	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [S] Save filters  [g] Git review  [W] Worktree  [f] Filter  [/] Search  [i] Compose  [?] Help  [ctrl+k] Palette  [q] Quit")
 }
 
 func (m Model) footer() string {

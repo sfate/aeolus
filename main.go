@@ -23,6 +23,7 @@ func main() {
 		os.Exit(1)
 	}
 	model := ui.NewModelWithConfig(settings)
+	model.LoadSavedPreferences()
 
 	p := tea.NewProgram(
 		model,
