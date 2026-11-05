@@ -69,6 +69,12 @@ The draft stays bound to the original pane and provider across refreshes. If tha
 
 Text is pasted through a uniquely named tmux buffer and followed by a separate Enter only after paste succeeds. Words such as `Enter` and `Escape` remain literal. Newlines and tabs are allowed; other terminal control characters are rejected by the transport. Bracketed paste is requested when supported by the receiving application; the target application controls how multiline input and the final Enter behave. The temporary buffer is removed after delivery attempts.
 
+## Attach file context
+
+Within the composer, press `ctrl+o`, enter a local file path, and press `enter` to attach it. Relative paths resolve against the original target pane's reported directory; if that directory is unavailable, enter an absolute path. No shell expansion is performed, so use the full home directory path instead of `~`. Press `esc` to return to the draft without attaching.
+
+Attachments must be regular UTF-8 text files no larger than 64 KiB. Symlinks to regular files are supported. Invalid UTF-8, nonregular files, oversized input, and terminal controls other than tabs and newlines are rejected. CR line endings are normalized. A successful read inserts the quoted file path and literal contents into the draft at the cursor for review. Nothing is sent automatically. Read errors and cancellation retain the draft; sending is disabled while the attachment input is open.
+
 ## Output search
 
 Press `/`, type a literal query, and press `enter` to keep it. Search ignores case and terminal color escapes, includes the full captured output (currently 50 history lines plus the visible pane), and counts matching lines. The active line has a `>` marker. `ctrl+n` and `ctrl+p` wrap through matches without changing the selected session.
