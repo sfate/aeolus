@@ -18,6 +18,7 @@ Aeolus is a TUI dashboard for managing [Claude Code](https://claude.ai/code), [C
 - Colored pane preview with live terminal output
 - Search the selected session capture without switching panes
 - Launch agents in a chosen directory and rename their tmux windows
+- Review staged and unstaged Git changes for the selected agent directory
 
 ## Usage
 
@@ -36,6 +37,7 @@ make run     # go run .
 | `n` | Deny Claude permission request / answer no |
 | `c` | Launch a new agent session |
 | `R` | Rename the selected pane's window |
+| `g` | Open read-only Git review for the selected pane directory |
 | `x` | Kill selected pane after confirmation |
 | `r` | Force refresh |
 | `f` | Filter sessions by provider and status |
@@ -50,6 +52,12 @@ make run     # go run .
 Press `c` to open the launch form. Use tab or shift+tab to choose Claude, Codex, or Gemini, edit the project directory, and press enter. The directory must exist and the selected agent must be on PATH. Absolute paths, relative paths, and `~/` paths are supported. Launch creates a uniquely named detached tmux session and selects it in the dashboard. It works outside tmux and can start a missing tmux server. Agent authentication and setup remain in the agent itself; open its pane to interact.
 
 Press `R` to rename the window containing the selected pane. This affects all panes sharing that window. Names must contain 1 to 80 characters and cannot contain control characters or `|`. Both forms support cursor movement, home/end, backspace/delete, and ctrl+u. Esc cancels before submission; submitted operations stay locked until completion. Errors retain the form input for correction. Existing enter-to-pane navigation and confirmed pane termination remain available outside the forms.
+
+## Git review
+
+Press `g` to load changed paths and aggregate staged/unstaged diffs for the selected pane's current directory. The view stays bound to that pane and directory across dashboard refreshes. Use arrow keys, j/k, page up/down, home/end, or the mouse wheel to scroll; `r` reloads the snapshot and `esc` closes it. Other dashboard actions are disabled in the review. A missing pane directory or non-Git directory shows an error rather than reviewing the dashboard's own repository.
+
+Review does not stage, edit, commit, fetch, or create worktrees. Git commands have a shared ten-second timeout and bounded output. Each diff is limited to 1 MiB; changed-path lists over 256 KiB produce an error. Large diffs display a truncation notice. Untracked paths are listed without reading their contents, binary changes use Git's summary, and submodule changes are omitted. External diff drivers, text conversion, clean filters, filesystem-monitor commands, and optional index writes are disabled. This produces a raw read-only snapshot; concurrent edits can change files between Git commands.
 
 ## Configuration
 

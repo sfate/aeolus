@@ -153,6 +153,7 @@ type Model struct {
 	contextRequest uint64
 	filters        sessionFilters
 	allSessions    []monitor.Session
+	review         gitReviewState
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -219,6 +220,10 @@ func (m Model) doKillPane(paneID string) tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
+	case gitReviewMsg:
+		m.finishGitReview(msg)
+		return m, nil
+
 	case lifecycleMsg:
 		return m.finishLifecycle(msg)
 
@@ -227,6 +232,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.viewport.Width = contentPaneWidth(m.width)
 		m.viewport.Height = contentPaneHeight(m.height)
+		if m.review.active {
+			m.review.viewport.Width = max(20, m.width-4)
+			m.review.viewport.Height = max(5, m.height-8)
+		}
 		m.updateViewport()
 		return m, nil
 
@@ -302,6 +311,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			return m, nil
+		}
+
+		if m.review.active || (!m.composer.active && !m.filters.editing && m.lifecycle.kind == lifecycleNone && !m.search.editing) {
+			if handled, cmd := m.gitReviewKey(msg); handled {
+				return m, cmd
+			}
 		}
 
 		if !m.composer.active && !m.filters.editing {
@@ -616,6 +631,10 @@ func (m Model) View() string {
 	header := lipgloss.JoinHorizontal(lipgloss.Top, title, ts)
 	header += "\n" + styleHelp.Render(m.filterSummary())
 
+	if m.review.active {
+		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.gitReviewView())
+	}
+
 	if m.lifecycle.kind != lifecycleNone {
 		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.lifecycleView())
 	}
@@ -757,7 +776,7 @@ func (m Model) helpBar() string {
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
-	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [f] Filter  [/] Search  [i] Compose  [q] Quit")
+	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [g] Git review  [f] Filter  [/] Search  [i] Compose  [q] Quit")
 }
 
 func (m Model) footer() string {
