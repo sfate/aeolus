@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/sfate/aeolus/internal/config"
 	"github.com/sfate/aeolus/internal/monitor"
 	"github.com/sfate/aeolus/internal/tmux"
 )
@@ -133,6 +134,7 @@ type SessionMonitor interface {
 
 // Model is the main Bubble Tea model for Aeolus.
 type Model struct {
+	interval    time.Duration
 	backend     tmux.Backend
 	monitor     SessionMonitor
 	sessions    []monitor.Session
@@ -148,9 +150,16 @@ type Model struct {
 }
 
 // NewModel creates a new Model with sensible defaults.
-func NewModel() Model {
+func NewModel() Model { return NewModelWithRefreshInterval(config.DefaultRefreshInterval) }
+
+// NewModelWithRefreshInterval creates a model with a custom polling interval.
+func NewModelWithRefreshInterval(interval time.Duration) Model {
 	backend := tmux.Client{}
-	return NewModelWithBackend(backend, monitor.New(backend))
+	m := NewModelWithBackend(backend, monitor.New(backend))
+	if interval >= 100*time.Millisecond && interval <= time.Minute {
+		m.interval = interval
+	}
+	return m
 }
 
 // NewModelWithBackend creates a TUI with injectable transport and state detection.
@@ -160,6 +169,7 @@ func NewModelWithBackend(backend tmux.Backend, sessionMonitor SessionMonitor) Mo
 	vp.Style = lipgloss.NewStyle()
 	return Model{
 		viewport: vp,
+		interval: config.DefaultRefreshInterval,
 		backend:  backend,
 		monitor:  sessionMonitor,
 	}
@@ -168,13 +178,13 @@ func NewModelWithBackend(backend tmux.Backend, sessionMonitor SessionMonitor) Mo
 // Init returns the initial command — a tick to start polling.
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
-		tick(),
+		m.tick(),
 		m.doRefresh(),
 	)
 }
 
-func tick() tea.Cmd {
-	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+func (m Model) tick() tea.Cmd {
+	return tea.Tick(m.interval, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
@@ -212,7 +222,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		return m, tea.Batch(tick(), m.doRefresh())
+		return m, tea.Batch(m.tick(), m.doRefresh())
 
 	case refreshMsg:
 		if msg.err != nil {

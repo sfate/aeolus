@@ -14,7 +14,7 @@ It watches all your sessions, shows what each one is doing, and lets you approve
 - Lists all tmux panes running Claude Code (others are hidden)
 - Shows session status: idle, working, or waiting for permission
 - Approve / deny permission requests with a single keypress
-- Auto-refreshes every 2 seconds
+- Auto-refreshes every 2 seconds by default
 - Colored pane preview with live terminal output
 
 ## Usage
@@ -35,6 +35,16 @@ make run     # go run .
 | `x` | Kill selected pane after confirmation |
 | `r` | Force refresh |
 | `q` | Quit |
+
+## Configuration
+
+Aeolus reads `$XDG_CONFIG_HOME/aeolus/config.json`, or `~/.config/aeolus/config.json` when `XDG_CONFIG_HOME` is unset. A missing default file uses defaults. Set `XDG_CONFIG_HOME` to an absolute path when overriding it.
+
+```json
+{"version": 1, "refresh_interval": "3s"}
+```
+
+Use `aeolus --config /path/to/config.json` to select another file. An explicitly selected file must exist. The version field is required and must be `1`; `refresh_interval` is optional and defaults to `2s`. Its allowed range is `100ms` through `1m`. Invalid files, duplicate or unknown fields, and unsupported versions produce an error before the TUI starts. Settings are read at startup. This first configuration slice supports the polling interval only.
 
 ## Requirements
 
