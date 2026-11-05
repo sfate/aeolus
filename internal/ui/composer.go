@@ -44,6 +44,9 @@ func (m *Model) composerKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 	if handled, cmd := m.contextKey(msg); handled {
 		return true, cmd
 	}
+	if handled, cmd := m.historyKey(msg); handled {
+		return true, cmd
+	}
 	c := &m.composer
 	runes := []rune(c.draft)
 	switch msg.String() {
@@ -145,6 +148,11 @@ func lineEnd(r []rune, p int) int {
 	return p
 }
 func (m *Model) updateComposerViewport() {
+	if m.history.active {
+		m.viewport.SetContent(m.historyView())
+		m.viewport.GotoTop()
+		return
+	}
 	if m.composer.context.active {
 		m.viewport.SetContent(m.contextView())
 		m.viewport.GotoTop()

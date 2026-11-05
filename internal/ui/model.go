@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/sfate/aeolus/internal/config"
+	"github.com/sfate/aeolus/internal/history"
 	"github.com/sfate/aeolus/internal/monitor"
 	"github.com/sfate/aeolus/internal/tmux"
 )
@@ -137,6 +138,12 @@ type SessionMonitor interface {
 
 // Model is the main Bubble Tea model for Aeolus.
 type Model struct {
+	history        historyLibrary
+	historyRequest uint64
+	historyLoad    func() ([]history.Entry, error)
+	historyWrite   func(history.Entry) (int, error)
+	historySaving  bool
+	historyNotice  string
 	interval       time.Duration
 	backend        tmux.Backend
 	monitor        SessionMonitor
@@ -223,6 +230,17 @@ func (m Model) doKillPane(paneID string) tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
+	case historyLoadedMsg:
+		m.finishHistoryLoad(msg)
+		return m, nil
+	case historySavedMsg:
+		m.historySaving = false
+		if msg.err != nil {
+			m.historyNotice = fmt.Sprintf("Cannot save command: %v", msg.err)
+		} else {
+			m.historyNotice = fmt.Sprintf("Command saved to history; %d oldest entries evicted.", msg.evicted)
+		}
+		return m, nil
 	case gitReviewMsg:
 		m.finishGitReview(msg)
 		return m, nil
@@ -636,6 +654,9 @@ func (m Model) View() string {
 	}
 	header := lipgloss.JoinHorizontal(lipgloss.Top, title, ts)
 	header += "\n" + styleHelp.Render(m.filterSummary())
+	if m.historyNotice != "" {
+		header += "\n" + safeReviewText(m.historyNotice)
+	}
 
 	if m.review.active {
 		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.gitReviewView())
