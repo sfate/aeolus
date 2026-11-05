@@ -1,6 +1,7 @@
 package tmux
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -102,5 +103,19 @@ func TestRenameWindowUsesLiteralArguments(t *testing.T) {
 	want := []string{"rename-window", "-t", "%7", "--", `review ##{session_name} $(x)\;`}
 	if got := recordedArgs(t, log); !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %#v want %#v", got, want)
+	}
+}
+
+func TestCreateSessionMarksUncertainTmuxResult(t *testing.T) {
+	dir, _ := fakeLifecycleTmux(t)
+	for _, script := range []string{"#!/bin/sh\nprintf 'invalid metadata\\n'\n", "#!/bin/sh\nexit 1\n"} {
+		if err := os.WriteFile(filepath.Join(dir, "tmux"), []byte(script), 0755); err != nil {
+			t.Fatal(err)
+		}
+		_, err := (Client{}).CreateSession(t.TempDir(), "claude")
+		var uncertain *LaunchUncertainError
+		if !errors.As(err, &uncertain) {
+			t.Fatalf("launch uncertainty unmarked: %v", err)
+		}
 	}
 }

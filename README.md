@@ -39,6 +39,7 @@ make run     # go run .
 | `c` | Launch a new agent session |
 | `R` | Rename the selected pane's window |
 | `g` | Open read-only Git review for the selected pane directory |
+| `W` | Create a new Git worktree and launch an agent |
 | `x` | Kill selected pane after confirmation |
 | `r` | Force refresh |
 | `f` | Filter sessions by provider and status |
@@ -61,6 +62,14 @@ Press `R` to rename the window containing the selected pane. This affects all pa
 Press `g` to load changed paths and aggregate staged/unstaged diffs for the selected pane's current directory. The view stays bound to that pane and directory across dashboard refreshes. Use arrow keys, j/k, page up/down, home/end, or the mouse wheel to scroll; `r` reloads the snapshot and `esc` closes it. Other dashboard actions are disabled in the review. A missing pane directory or non-Git directory shows an error rather than reviewing the dashboard's own repository.
 
 Review does not stage, edit, commit, fetch, or create worktrees. Git commands have a shared ten-second timeout and bounded output. Each diff is limited to 1 MiB; changed-path lists over 256 KiB produce an error. Large diffs display a truncation notice. Untracked paths are listed without reading their contents, binary changes use Git's summary, and submodule changes are omitted. External diff drivers, text conversion, clean filters, filesystem-monitor commands, and optional index writes are disabled. This produces a raw read-only snapshot; concurrent edits can change files between Git commands.
+
+## Isolated agent worktrees
+
+Press `W` with a session selected to create an isolated Git worktree from that pane's repository HEAD. Enter an absolute destination whose parent exists and a new branch name. Use tab or shift+tab to move between destination, branch, and agent; left/right changes the agent. Enter creates the checkout and launches the chosen agent. Esc cancels before submission. Submitted operations block duplicate actions until completion.
+
+Existing paths and branches are rejected. Staged, unstaged, and untracked source changes remain in the original checkout. Creation disables repository hooks, external filters, filesystem monitors, and network/lazy fetch, and uses a shared 30-second timeout. It rejects destinations inside Git metadata. The source pane, provider, and directory must still match when submitting and before launch.
+
+If launching fails after checkout succeeds, the form retains the worktree and branch; Enter retries launch only. Partial creation failures retain artifacts for inspection and cannot be retried from the form. If tmux reports an uncertain launch outcome, retries are blocked until you inspect its sessions and reopen the form. No worktree or branch is automatically removed. Review retained paths in the form before closing it.
 
 ## Configuration
 
