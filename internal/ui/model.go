@@ -154,6 +154,8 @@ type Model struct {
 	filters        sessionFilters
 	allSessions    []monitor.Session
 	review         gitReviewState
+	response       *pendingResponse
+	responseID     uint64
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -219,6 +221,10 @@ func (m Model) doKillPane(paneID string) tea.Cmd {
 // Update handles incoming messages and user input.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	case responseSentMsg:
+		m.finishResponse(msg)
+		return m, nil
 
 	case gitReviewMsg:
 		m.finishGitReview(msg)
@@ -360,48 +366,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.confirmKill = ""
 				m.updateViewport()
 			}
-		case "y":
-			if m.cursor < len(m.sessions) && m.sessions[m.cursor].CanRespond() {
-				s := m.sessions[m.cursor]
-				switch s.Status {
-				case monitor.StatusPermission:
-					_ = m.backend.SendKeys(s.Pane.PaneID, "y")
-					m.sessions[m.cursor].Status = monitor.StatusWorking
-					m.sessions[m.cursor].Request = nil
-					m.updateViewport()
-				case monitor.StatusQuestion:
-					_ = m.backend.SendKeys(s.Pane.PaneID, "y")
-					m.sessions[m.cursor].Status = monitor.StatusWorking
-					m.sessions[m.cursor].Question = nil
-					m.updateViewport()
-				}
-			}
-		case "a":
-			if m.cursor < len(m.sessions) && m.sessions[m.cursor].CanRespond() {
-				s := m.sessions[m.cursor]
-				if s.Status == monitor.StatusPermission {
-					_ = m.backend.SendKeySequence(s.Pane.PaneID, "Down", "Enter")
-					m.sessions[m.cursor].Status = monitor.StatusWorking
-					m.sessions[m.cursor].Request = nil
-					m.updateViewport()
-				}
-			}
-		case "n":
-			if m.cursor < len(m.sessions) && m.sessions[m.cursor].CanRespond() {
-				s := m.sessions[m.cursor]
-				switch s.Status {
-				case monitor.StatusPermission:
-					_ = m.backend.SendKeys(s.Pane.PaneID, "n")
-					m.sessions[m.cursor].Status = monitor.StatusIdle
-					m.sessions[m.cursor].Request = nil
-					m.updateViewport()
-				case monitor.StatusQuestion:
-					_ = m.backend.SendKeys(s.Pane.PaneID, "n")
-					m.sessions[m.cursor].Status = monitor.StatusIdle
-					m.sessions[m.cursor].Question = nil
-					m.updateViewport()
-				}
-			}
+		case "y", "a", "n":
+			return m.startResponse(msg.String())
 		case "enter":
 			if m.cursor < len(m.sessions) {
 				s := m.sessions[m.cursor]
@@ -420,9 +386,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
-		}
-		if msg.String() == "y" || msg.String() == "a" || msg.String() == "n" {
-			m.applyFilters()
 		}
 	}
 
@@ -772,6 +735,9 @@ func (m Model) renderSessionList(width, height int) string {
 // helpBar renders the bottom keybinding help.
 func (m Model) helpBar() string {
 	responses := ""
+	if m.response != nil {
+		return styleHelp.Render("Sending response to " + m.response.session.Pane.PaneID + " - response keys disabled until delivery completes")
+	}
 	if m.cursor < len(m.sessions) && m.sessions[m.cursor].CanRespond() &&
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
