@@ -165,6 +165,7 @@ type Model struct {
 	responseID      uint64
 	promptRequest   uint64
 	worktree        worktreeForm
+	help            keyboardHelp
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -351,7 +352,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.promptSent(msg)
 		return m, nil
 
+	case tea.MouseMsg:
+		if m.help.active {
+			var cmd tea.Cmd
+			m.help.viewport, cmd = m.help.viewport.Update(msg)
+			return m, cmd
+		}
+
 	case tea.KeyMsg:
+		if m.help.active || (msg.String() == "?" && m.helpAvailable()) {
+			return m.updateHelp(msg)
+		}
 		if m.confirmKill != "" {
 			switch msg.String() {
 			case "y":
@@ -504,6 +515,9 @@ func contentPaneHeight(total int) int {
 // - permission sessions: top (so the parsed summary is immediately visible)
 // - others: bottom (so the most recent terminal output is visible)
 func (m *Model) updateViewport() {
+	if m.help.active {
+		m.resizeHelp()
+	}
 	if m.composer.active {
 		m.updateComposerViewport()
 		return
@@ -639,6 +653,9 @@ func (m Model) View() string {
 
 	if m.width == 0 {
 		return "Loading…"
+	}
+	if m.help.active {
+		return m.helpView()
 	}
 
 	// Header
@@ -803,7 +820,7 @@ func (m Model) helpBar() string {
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
-	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [g] Git review  [W] Worktree  [f] Filter  [/] Search  [i] Compose  [q] Quit")
+	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [g] Git review  [W] Worktree  [f] Filter  [/] Search  [i] Compose  [?] Help  [q] Quit")
 }
 
 func (m Model) footer() string {

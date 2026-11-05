@@ -48,6 +48,13 @@ make run     # go run .
 | `ctrl+n` / `ctrl+p` | Next / previous matching line |
 | `esc` | Cancel query editing or clear the search |
 | `q` | Quit |
+| `?` | Open contextual keyboard help |
+
+## Keyboard help
+
+Press `?` from the dashboard to open scrollable keyboard help. The first section shows the selected provider and status, with approval keys only when supported by the current Claude request. It updates as sessions refresh. Other sections cover dashboard navigation, composer and attachment editing, session forms, filters, search, and Git review.
+
+Use arrows, j/k, page up/down, or Home/End to scroll and Escape to return to the dashboard. Session actions are disabled while help is open; Ctrl+C quits. In text inputs, `?` stays ordinary text. Close other modals before opening help.
 
 Approval and yes/no response keys run asynchronously. While a response is being delivered, repeated response keys are disabled. The request remains visible until delivery succeeds; failures retain it and show an error. A transport failure can occur after some keys reached the pane, so inspect the pane before retrying. Completion stays bound to the original pane and does not clear a newer request discovered during refresh.
 
