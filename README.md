@@ -16,6 +16,7 @@ Aeolus is a TUI dashboard for managing [Claude Code](https://claude.ai/code), [C
 - Shows Codex and Gemini activity as unknown; use `enter` to inspect and respond in the pane
 - Auto-refreshes every 2 seconds
 - Colored pane preview with live terminal output
+- Search the selected session capture without switching panes
 
 ## Usage
 
@@ -34,7 +35,16 @@ make run     # go run .
 | `n` | Deny Claude permission request / answer no |
 | `x` | Kill selected pane after confirmation |
 | `r` | Force refresh |
+| `/` | Edit a captured-output search |
+| `ctrl+n` / `ctrl+p` | Next / previous matching line |
+| `esc` | Cancel query editing or clear the search |
 | `q` | Quit |
+
+## Output search
+
+Press `/`, type a literal query, and press `enter` to keep it. Search ignores case and terminal color escapes, includes the full captured output (currently 50 history lines plus the visible pane), and counts matching lines. The active line has a `>` marker. `ctrl+n` and `ctrl+p` wrap through matches without changing the selected session.
+
+While editing, navigation and action keys become query text; `esc` restores the previous query and `ctrl+u` clears the input. Arrow keys, home/end, backspace, and delete edit Unicode text. While a query is kept, normal session shortcuts remain available. `esc` clears it and restores the regular preview and permission summary. Search uses an uncolored capture view and stays scoped to the selected pane across refreshes; changing or removing that pane clears it. Search reads the latest capture only, not unlimited tmux history.
 
 ## Requirements
 

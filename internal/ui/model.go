@@ -145,6 +145,7 @@ type Model struct {
 	viewport    viewport.Model
 	tmuxMissing bool
 	confirmKill string
+	search      outputSearch
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -225,7 +226,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.err = nil
 			m.tmuxMissing = false
+			selected := ""
+			if m.cursor < len(m.sessions) {
+				selected = m.sessions[m.cursor].Pane.PaneID
+			}
 			m.sessions = msg.sessions
+			for i, session := range m.sessions {
+				if session.Pane.PaneID == selected {
+					m.cursor = i
+					break
+				}
+			}
 			m.lastRefresh = time.Now()
 			// Clamp cursor
 			if m.cursor >= len(m.sessions) && len(m.sessions) > 0 {
@@ -267,6 +278,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "q", "ctrl+c":
 				m.quitting = true
+				return m, tea.Quit
+			}
+			return m, nil
+		}
+
+		if m.searchKey(msg) {
+			if m.quitting {
 				return m, tea.Quit
 			}
 			return m, nil
@@ -336,6 +354,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "x":
 			if m.cursor < len(m.sessions) {
+				m.search = outputSearch{}
 				m.confirmKill = m.sessions[m.cursor].Pane.PaneID
 				m.updateViewport()
 			}
@@ -404,6 +423,12 @@ func contentPaneHeight(total int) int {
 // - permission sessions: top (so the parsed summary is immediately visible)
 // - others: bottom (so the most recent terminal output is visible)
 func (m *Model) updateViewport() {
+	if m.search.active() {
+		m.updateSearchViewport()
+		if m.search.active() {
+			return
+		}
+	}
 	m.viewport.SetContent(m.contentPaneText())
 	s := monitor.Status(-1)
 	if m.cursor < len(m.sessions) {
@@ -601,7 +626,7 @@ func (m Model) View() string {
 		"",
 		panes,
 		"",
-		m.helpBar(),
+		m.footer(),
 	)
 }
 
@@ -673,5 +698,12 @@ func (m Model) helpBar() string {
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
-	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [x] Kill pane  [r] Refresh  [q] Quit")
+	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [x] Kill pane  [r] Refresh  [/] Search  [q] Quit")
+}
+
+func (m Model) footer() string {
+	if m.search.active() {
+		return m.searchHelp()
+	}
+	return m.helpBar()
 }
