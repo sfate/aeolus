@@ -1,6 +1,7 @@
 package tmux
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 	"strings"
@@ -23,7 +24,7 @@ func parsePanes(data []byte) ([]Pane, error) {
 	for len(data) > 0 {
 		fields := make([]string, len(paneMetadataFields))
 		for i := range fields {
-			colon := strings.IndexByte(string(data), ':')
+			colon := bytes.IndexByte(data, ':')
 			if colon < 1 {
 				return nil, fmt.Errorf("invalid tmux pane metadata length for %s", paneMetadataFields[i])
 			}
