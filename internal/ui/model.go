@@ -163,6 +163,7 @@ type Model struct {
 	refreshObsolete bool
 	response        *pendingResponse
 	responseID      uint64
+	promptRequest   uint64
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -331,6 +332,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewport()
 		cmd := m.doRefresh()
 		return m, cmd
+
+	case libraryResultMsg:
+		m.libraryResult(msg)
+		return m, nil
 
 	case contextLoadedMsg:
 		m.contextLoaded(msg)
@@ -788,10 +793,16 @@ func (m Model) helpBar() string {
 
 func (m Model) footer() string {
 	if m.composer.active {
+		if m.composer.library.active {
+			if m.composer.library.naming {
+				return styleHelp.Render("[enter] Save unique name  [esc] Back to library")
+			}
+			return styleHelp.Render("[j/k] Select  [enter] Insert  [s] Save draft  [ctrl+r] Reload  [pgup/pgdown] Preview  [esc] Back")
+		}
 		if m.composer.context.active {
 			return styleHelp.Render("[enter] Attach for review  [esc] Back to draft")
 		}
-		return styleHelp.Render("[enter] New line  [ctrl+s] Send  [ctrl+o] Attach file  [esc] Cancel")
+		return styleHelp.Render("[enter] New line  [ctrl+s] Send  [ctrl+o] Attach file  [ctrl+p] Prompts  [esc] Cancel")
 	}
 	if m.filters.editing {
 		return styleHelp.Render("[tab] Controls/directory text  [enter] Apply  [esc] Cancel")

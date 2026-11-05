@@ -87,6 +87,14 @@ The draft stays bound to the original pane and provider across refreshes. If tha
 
 Text is pasted through a uniquely named tmux buffer and followed by a separate Enter only after paste succeeds. Words such as `Enter` and `Escape` remain literal. Newlines and tabs are allowed; other terminal control characters are rejected by the transport. Bracketed paste is requested when supported by the receiving application; the target application controls how multiline input and the final Enter behave. The temporary buffer is removed after delivery attempts.
 
+## Reusable prompts
+
+Within the composer, press `ctrl+p` to open the local prompt library. Select a prompt with `j`/`k` or arrow keys and press `enter` to insert its text at the draft cursor for review. Use page up/down to inspect the selected prompt. Nothing is sent automatically. Press `esc` to return to the draft.
+
+Press `s` in the library to save the current draft under a name, then `enter` to save. Names are unique and duplicates are rejected without overwriting existing prompts. Save errors retain the draft and naming input. While a save is pending, cancellation and repeat actions are blocked until its result arrives. `ctrl+r` reloads the library.
+
+The versioned JSON library lives at `$XDG_DATA_HOME/aeolus/prompts.json`, falling back to `~/.local/share/aeolus/prompts.json`. New directories use mode 0700 and library files use mode 0600. Writes use a lock, reload the current library, and replace it atomically. Busy libraries report an error rather than losing another instance's changes. Corrupt or unsupported files are never silently overwritten. The library allows up to 128 prompts, each with an 80-character name and 64 KiB of valid UTF-8 text; total JSON is limited to 1 MiB. Unknown or duplicate JSON fields, missing/null prompt arrays, duplicate names, and unsupported control characters are rejected. Provider integration configuration remains separate.
+
 ## Attach file context
 
 Within the composer, press `ctrl+o`, enter a local file path, and press `enter` to attach it. Relative paths resolve against the original target pane's reported directory; if that directory is unavailable, enter an absolute path. No shell expansion is performed, so use the full home directory path instead of `~`. Press `esc` to return to the draft without attaching.
