@@ -41,7 +41,7 @@ func Load(path string) (Config, error) {
 		}
 		return result, fmt.Errorf("read config %s: %w", path, err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	parsed, err := decode(file)
 	if err != nil {
 		return result, fmt.Errorf("config %s: %w", path, err)
