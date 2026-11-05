@@ -96,7 +96,7 @@ func (Client) CreateSession(directory, command string) (Pane, error) {
 	if err != nil {
 		return Pane{}, fmt.Errorf("session %s was created but tmux returned an invalid window index", name)
 	}
-	return Pane{PaneID: fields[0], SessionID: fields[1], SessionName: fields[2], WindowIndex: index, WindowName: command, CurrentCommand: command}, nil
+	return Pane{PaneID: fields[0], SessionID: fields[1], SessionName: fields[2], WindowIndex: index, WindowName: command, CurrentCommand: command, CurrentPath: directory}, nil
 }
 
 // RenameWindow changes the window containing an exact pane ID.

@@ -42,7 +42,7 @@ func TestCreateSessionUsesLiteralArguments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pane.PaneID != "%7" || pane.SessionID != "$4" || pane.WindowIndex != 2 || pane.CurrentCommand != "claude" {
+	if pane.PaneID != "%7" || pane.SessionID != "$4" || pane.WindowIndex != 2 || pane.CurrentCommand != "claude" || pane.CurrentPath != directory {
 		t.Fatalf("metadata %#v", pane)
 	}
 	args := recordedArgs(t, log)
