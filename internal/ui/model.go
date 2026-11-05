@@ -148,6 +148,7 @@ type Model struct {
 	tmuxMissing bool
 	confirmKill string
 	search      outputSearch
+	composer    promptComposer
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -274,6 +275,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewport()
 		return m, m.doRefresh()
 
+	case promptSentMsg:
+		m.promptSent(msg)
+		return m, nil
+
 	case tea.KeyMsg:
 		if m.confirmKill != "" {
 			switch msg.String() {
@@ -291,6 +296,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			return m, nil
+		}
+
+		if !m.search.editing {
+			if handled, cmd := m.composerKey(msg); handled {
+				return m, cmd
+			}
 		}
 
 		if m.searchKey(msg) {
@@ -433,6 +444,10 @@ func contentPaneHeight(total int) int {
 // - permission sessions: top (so the parsed summary is immediately visible)
 // - others: bottom (so the most recent terminal output is visible)
 func (m *Model) updateViewport() {
+	if m.composer.active {
+		m.updateComposerViewport()
+		return
+	}
 	if m.search.active() {
 		m.updateSearchViewport()
 		if m.search.active() {
@@ -708,10 +723,13 @@ func (m Model) helpBar() string {
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
-	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [x] Kill pane  [r] Refresh  [/] Search  [q] Quit")
+	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [x] Kill pane  [r] Refresh  [/] Search  [i] Compose  [q] Quit")
 }
 
 func (m Model) footer() string {
+	if m.composer.active {
+		return styleHelp.Render("[enter] New line  [ctrl+s] Send  [esc] Cancel")
+	}
 	if m.search.active() {
 		return m.searchHelp()
 	}
