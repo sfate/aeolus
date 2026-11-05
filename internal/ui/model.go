@@ -134,25 +134,26 @@ type SessionMonitor interface {
 
 // Model is the main Bubble Tea model for Aeolus.
 type Model struct {
-	interval    time.Duration
-	backend     tmux.Backend
-	monitor     SessionMonitor
-	sessions    []monitor.Session
-	cursor      int
-	width       int
-	height      int
-	lastRefresh time.Time
-	err         error
-	quitting    bool
-	viewport    viewport.Model
-	tmuxMissing bool
-	confirmKill string
-	search      outputSearch
-	lifecycle   lifecycleForm
-	composer    promptComposer
-	filters     sessionFilters
-	allSessions []monitor.Session
-	review      gitReviewState
+	interval       time.Duration
+	backend        tmux.Backend
+	monitor        SessionMonitor
+	sessions       []monitor.Session
+	cursor         int
+	width          int
+	height         int
+	lastRefresh    time.Time
+	err            error
+	quitting       bool
+	viewport       viewport.Model
+	tmuxMissing    bool
+	confirmKill    string
+	search         outputSearch
+	lifecycle      lifecycleForm
+	composer       promptComposer
+	contextRequest uint64
+	filters        sessionFilters
+	allSessions    []monitor.Session
+	review         gitReviewState
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -284,6 +285,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.updateViewport()
 		return m, m.doRefresh()
+
+	case contextLoadedMsg:
+		m.contextLoaded(msg)
+		return m, nil
 
 	case promptSentMsg:
 		m.promptSent(msg)
@@ -483,7 +488,7 @@ func (m *Model) updateViewport() {
 		return
 	}
 	if m.filters.editing {
-		m.viewport.SetContent("Filter sessions\n\n" + m.filters.draft.description() + "\n\n[p] Cycle provider  [s] Cycle status\n[c] Clear both  [enter] Apply  [esc] Cancel")
+		m.viewport.SetContent(m.filterModalText())
 		m.viewport.GotoTop()
 		return
 	}
@@ -776,10 +781,13 @@ func (m Model) helpBar() string {
 
 func (m Model) footer() string {
 	if m.composer.active {
-		return styleHelp.Render("[enter] New line  [ctrl+s] Send  [esc] Cancel")
+		if m.composer.context.active {
+			return styleHelp.Render("[enter] Attach for review  [esc] Back to draft")
+		}
+		return styleHelp.Render("[enter] New line  [ctrl+s] Send  [ctrl+o] Attach file  [esc] Cancel")
 	}
 	if m.filters.editing {
-		return styleHelp.Render("[p] Provider  [s] Status  [c] Clear  [enter] Apply  [esc] Cancel")
+		return styleHelp.Render("[tab] Controls/directory text  [enter] Apply  [esc] Cancel")
 	}
 	if m.search.active() {
 		return m.searchHelp()

@@ -127,3 +127,45 @@ func TestUnknownProviderAndFilterSummary(t *testing.T) {
 		t.Fatalf("summary=%s", m.filterSummary())
 	}
 }
+
+func TestWorkingDirectoryFilter(t *testing.T) {
+	a, b := testSession("%1"), testSession("%2")
+	a.Pane.CurrentPath = "/work/雪 project"
+	b.Pane.CurrentPath = "/elsewhere"
+	m := NewModel()
+	m.sessions = []monitor.Session{b, a}
+	m.cursor = 1
+	m.filters.applied.directory = "雪"
+	m.applyFilters()
+	if len(m.sessions) != 1 || m.selectedPaneID() != "%1" {
+		t.Fatal("directory filter lost matching selected pane")
+	}
+	if m.filters.applied.matches(testSession("%9")) {
+		t.Fatal("unknown directory matched nonempty query")
+	}
+	m, _ = updateModel(t, m, refreshMsg{sessions: []monitor.Session{a, b}})
+	if len(m.sessions) != 1 || m.selectedPaneID() != "%1" {
+		t.Fatal("refresh lost directory filter")
+	}
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("pcs雪")})
+	if m.filters.draft.directory != "pcs雪" || m.filters.draft.provider != 0 || m.filters.draft.status != 0 {
+		t.Fatal("project input ran filter controls")
+	}
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyBackspace})
+	if m.filters.draft.directory != "pcs" {
+		t.Fatal("backspace split Unicode")
+	}
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyEsc})
+	if m.filters.applied.directory != "雪" {
+		t.Fatal("cancel changed applied directory")
+	}
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if len(m.sessions) != 2 {
+		t.Fatal("clear did not restore directories")
+	}
+}

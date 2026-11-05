@@ -136,3 +136,28 @@ func TestGitReviewStripsTerminalControls(t *testing.T) {
 		t.Fatalf("missing literal path/limit: %s", fmt.Sprint(content))
 	}
 }
+
+func TestGitReviewAndFileAttachmentIsolation(t *testing.T) {
+	m := NewModel()
+	s := testSession("%1")
+	s.Pane.CurrentPath = t.TempDir()
+	m.sessions = []monitor.Session{s}
+	m = key(m, t, "i")
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyCtrlO})
+	m = key(m, t, "g")
+	if m.review.active || !m.composer.context.active || m.composer.context.path != "g" {
+		t.Fatal("attachment path opened Git review")
+	}
+	m = key(m, t, "esc")
+	m = key(m, t, "esc")
+	m = key(m, t, "g")
+	if !m.review.active {
+		t.Fatal("Git review did not open after cancelling composer")
+	}
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyCtrlO})
+	m = key(m, t, "i")
+	if m.composer.active {
+		t.Fatal("Git review opened composer")
+	}
+	m = key(m, t, "esc")
+}

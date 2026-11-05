@@ -21,6 +21,7 @@ type promptComposer struct {
 	provider        monitor.Provider
 	position        int
 	err             error
+	context         contextInput
 }
 
 func (m *Model) composerKey(msg tea.KeyMsg) (bool, tea.Cmd) {
@@ -38,6 +39,9 @@ func (m *Model) composerKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 	}
 	if m.composer.pending {
 		return true, nil
+	}
+	if handled, cmd := m.contextKey(msg); handled {
+		return true, cmd
 	}
 	c := &m.composer
 	runes := []rune(c.draft)
@@ -140,6 +144,11 @@ func lineEnd(r []rune, p int) int {
 	return p
 }
 func (m *Model) updateComposerViewport() {
+	if m.composer.context.active {
+		m.viewport.SetContent(m.contextView())
+		m.viewport.GotoTop()
+		return
+	}
 	c := m.composer
 	r := []rune(c.draft)
 	header := fmt.Sprintf("Compose for pane %s\n", c.paneID)
