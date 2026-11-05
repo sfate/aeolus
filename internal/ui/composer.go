@@ -6,6 +6,7 @@ import (
 	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/sfate/aeolus/internal/monitor"
 )
 
@@ -174,8 +175,10 @@ func (m *Model) updateComposerViewport() {
 		header += "Error: " + c.err.Error() + "\n"
 	}
 	header += "\n"
-	m.viewport.SetContent(header + string(r[:c.position]) + "▏" + string(r[c.position:]))
-	line := strings.Count(header+string(r[:c.position]), "\n")
+	before := ansi.Hardwrap(header+string(r[:c.position])+"▏", max(1, m.viewport.Width-1), true)
+	content := ansi.Hardwrap(header+string(r[:c.position])+"▏"+string(r[c.position:]), max(1, m.viewport.Width-1), true)
+	m.viewport.SetContent(content)
+	line := strings.Count(before, "\n")
 	if line < m.viewport.YOffset {
 		m.viewport.SetYOffset(line)
 	} else if line >= m.viewport.YOffset+m.viewport.Height {

@@ -40,7 +40,7 @@ func (m *Model) gitReviewKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 		m.review.active = true
 		m.review.paneID = pane.PaneID
 		m.review.directory = pane.CurrentPath
-		m.review.viewport = viewport.New(max(20, m.width-4), max(5, m.height-8))
+		m.review.viewport = viewport.New(max(1, m.width), max(1, m.height-7))
 		return true, m.startGitReview()
 	}
 	switch msg.String() {
@@ -149,5 +149,5 @@ func reviewSnapshotText(snapshot gitreview.Snapshot) string {
 
 func (m Model) gitReviewView() string {
 	title := fmt.Sprintf("Git review - pane %s - directory %s\n", m.review.paneID, strconv.Quote(m.review.directory))
-	return safeReviewText(title) + "\n" + m.review.viewport.View() + "\n\n[r] Reload snapshot  [↑↓/j/k/pgup/pgdown] Scroll  [esc] Close"
+	return fitLine(safeReviewText(strings.TrimSuffix(title, "\n")), m.width) + "\n\n" + m.review.viewport.View() + "\n\n[r] Reload snapshot  [↑↓/j/k/pgup/pgdown] Scroll  [esc] Close"
 }

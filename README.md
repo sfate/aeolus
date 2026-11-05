@@ -65,6 +65,10 @@ Press `ctrl+k` from the dashboard to search available actions. Type a case-insen
 
 Edit the query with left/right, Home/End or ctrl+a/ctrl+e, Backspace/Delete, and ctrl+u to clear. Ordinary letters, including dashboard shortcuts, stay query text. Open the palette after closing other modals; Ctrl+C quits from the palette.
 
+## Terminal layout
+
+At 80 columns and wider, sessions and captured output appear side by side. Narrower terminals stack a short session list above the output; navigation keeps the selected session visible. Composer and filter forms use the available width. The supported minimum is 24 columns by 12 rows; smaller terminals show a resize message. Labels and clipped lines use terminal cell widths, preserving Unicode characters and ANSI color sequences. Long composer drafts wrap visually, while path and search inputs keep the insertion cursor visible. Resizing preserves session selection and adjusts scrollable viewports.
+
 ## Session lifecycle
 
 Press `c` to open the launch form. Use tab or shift+tab to choose Claude, Codex, or Gemini, edit the project directory, and press enter. The directory must exist and the selected agent must be on PATH. Absolute paths, relative paths, and `~/` paths are supported. Launch creates a uniquely named detached tmux session and selects it in the dashboard. It works outside tmux and can start a missing tmux server. Agent authentication and setup remain in the agent itself; open its pane to interact.
