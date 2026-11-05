@@ -23,6 +23,11 @@ type Lifecycle interface {
 	RenameWindow(paneID, name string) error
 }
 
+// ShellLifecycle launches explicitly managed interactive zsh sessions.
+type ShellLifecycle interface {
+	CreateShellSession(directory string) (Pane, error)
+}
+
 // literalFormatArgument protects values from tmux format expansion and its
 // command separator parsing. Shell quoting is unnecessary because argv is used.
 func literalFormatArgument(value string) string {
@@ -51,6 +56,14 @@ func (Client) CreateSession(directory, command string) (Pane, error) {
 	default:
 		return Pane{}, fmt.Errorf("unsupported agent %q: choose claude, codex, or gemini", command)
 	}
+	return createSession(directory, command, false)
+}
+
+func (Client) CreateShellSession(directory string) (Pane, error) {
+	return createSession(directory, "zsh", true)
+}
+
+func createSession(directory, command string, shell bool) (Pane, error) {
 	directory, err := filepath.Abs(directory)
 	if err != nil {
 		return Pane{}, fmt.Errorf("resolve project directory: %w", err)
@@ -84,7 +97,11 @@ func (Client) CreateSession(directory, command string) (Pane, error) {
 	}
 	name := fmt.Sprintf("aeolus-%s-%x", command, nonce)
 	format := "#{pane_id}\t#{session_id}\t#{session_name}\t#{window_index}"
-	out, err := lifecycleOutput("new-session", "-d", "-P", "-F", format, "-s", name, "-n", command, "-c", literalFormatArgument(directory), "--", env, executable)
+	args := []string{"new-session", "-d", "-P", "-F", format, "-s", name, "-n", command, "-c", literalFormatArgument(directory), "--", env, executable}
+	if shell {
+		args = append(args, "-i")
+	}
+	out, err := lifecycleOutput(args...)
 	if err != nil {
 		return Pane{}, err
 	}
@@ -96,7 +113,12 @@ func (Client) CreateSession(directory, command string) (Pane, error) {
 	if err != nil {
 		return Pane{}, fmt.Errorf("session %s was created but tmux returned an invalid window index", name)
 	}
-	return Pane{PaneID: fields[0], SessionID: fields[1], SessionName: fields[2], WindowIndex: index, WindowName: command, CurrentCommand: command, CurrentPath: directory}, nil
+	if shell {
+		if _, err := lifecycleOutput("set-option", "-p", "-t", fields[0], "@aeolus-shell", "v1"); err != nil {
+			return Pane{}, fmt.Errorf("shell session %s was created but marking it failed; inspect it with tmux list-sessions: %w", name, err)
+		}
+	}
+	return Pane{PaneID: fields[0], SessionID: fields[1], SessionName: fields[2], WindowIndex: index, WindowName: command, CurrentCommand: command, CurrentPath: directory, Shell: shell}, nil
 }
 
 // RenameWindow changes the window containing an exact pane ID.

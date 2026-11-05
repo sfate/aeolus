@@ -18,9 +18,19 @@ func paneRecord(fields ...string) string {
 	return b.String() + "\n"
 }
 
+func TestManagedShellMetadataMarker(t *testing.T) {
+	for _, marker := range []string{"", "v1", "v2", "true"} {
+		record := paneRecord("%2", "0", "1", "session", "$1", "zsh", "123", "80", "24", "shell", "/tmp", marker)
+		panes, err := parsePanes([]byte(record))
+		if err != nil || len(panes) != 1 || panes[0].Shell != (marker == "v1") {
+			t.Fatalf("marker %q: %#v %v", marker, panes, err)
+		}
+	}
+}
+
 func TestParsePaneMetadata(t *testing.T) {
 	path := "/tmp/雪 project|with\ttab\nand\\slashes# "
-	record := paneRecord("%2", "0", "1", "session|雪", "$1", "claude", "123", "80", "24", "window|name", path)
+	record := paneRecord("%2", "0", "1", "session|雪", "$1", "claude", "123", "80", "24", "window|name", path, "")
 	got, err := parsePanes([]byte(record + record))
 	if err != nil || len(got) != 2 || got[0].CurrentPath != path || got[0].WindowName != "window|name" || got[0].SessionName != "session|雪" {
 		t.Fatalf("got=%#v err=%v", got, err)
