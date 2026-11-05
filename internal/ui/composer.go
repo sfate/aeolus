@@ -22,6 +22,7 @@ type promptComposer struct {
 	position        int
 	err             error
 	context         contextInput
+	library         promptLibrary
 }
 
 func (m *Model) composerKey(msg tea.KeyMsg) (bool, tea.Cmd) {
@@ -40,7 +41,14 @@ func (m *Model) composerKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 	if m.composer.pending {
 		return true, nil
 	}
+	if m.composer.library.active {
+		handled, cmd := m.libraryKey(msg)
+		return handled, cmd
+	}
 	if handled, cmd := m.contextKey(msg); handled {
+		return true, cmd
+	}
+	if handled, cmd := m.libraryKey(msg); handled {
 		return true, cmd
 	}
 	c := &m.composer
@@ -144,6 +152,11 @@ func lineEnd(r []rune, p int) int {
 	return p
 }
 func (m *Model) updateComposerViewport() {
+	if m.composer.library.active {
+		m.viewport.SetContent(m.libraryView())
+		m.viewport.GotoTop()
+		return
+	}
 	if m.composer.context.active {
 		m.viewport.SetContent(m.contextView())
 		m.viewport.GotoTop()
