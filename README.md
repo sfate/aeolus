@@ -17,6 +17,7 @@ Aeolus is a TUI dashboard for managing [Claude Code](https://claude.ai/code), [C
 - Auto-refreshes every 2 seconds by default
 - Colored pane preview with live terminal output
 - Search the selected session capture without switching panes
+- Launch agents in a chosen directory and rename their tmux windows
 
 ## Usage
 
@@ -33,6 +34,8 @@ make run     # go run .
 | `y` | Approve Claude permission request / answer yes |
 | `a` | Approve Claude permission request for the session |
 | `n` | Deny Claude permission request / answer no |
+| `c` | Launch a new agent session |
+| `R` | Rename the selected pane's window |
 | `x` | Kill selected pane after confirmation |
 | `r` | Force refresh |
 | `f` | Filter sessions by provider and status |
@@ -41,6 +44,12 @@ make run     # go run .
 | `ctrl+n` / `ctrl+p` | Next / previous matching line |
 | `esc` | Cancel query editing or clear the search |
 | `q` | Quit |
+
+## Session lifecycle
+
+Press `c` to open the launch form. Use tab or shift+tab to choose Claude, Codex, or Gemini, edit the project directory, and press enter. The directory must exist and the selected agent must be on PATH. Absolute paths, relative paths, and `~/` paths are supported. Launch creates a uniquely named detached tmux session and selects it in the dashboard. It works outside tmux and can start a missing tmux server. Agent authentication and setup remain in the agent itself; open its pane to interact.
+
+Press `R` to rename the window containing the selected pane. This affects all panes sharing that window. Names must contain 1 to 80 characters and cannot contain control characters or `|`. Both forms support cursor movement, home/end, backspace/delete, and ctrl+u. Esc cancels before submission; submitted operations stay locked until completion. Errors retain the form input for correction. Existing enter-to-pane navigation and confirmed pane termination remain available outside the forms.
 
 ## Configuration
 
@@ -83,3 +92,5 @@ Detection uses executable names and known npm entry points in the pane process t
 ## Session filters
 
 Press `f` to open session filters. Press `p` to cycle providers and `s` to cycle statuses, then `enter` to apply. Press `c` to clear both choices or `esc` to discard draft changes. The header shows active filters and visible/total session counts. Filtering keeps the selected pane when it remains visible and retains hidden sessions so clearing filters restores them. An empty result does not send actions to hidden panes. Output search remains scoped to the visible selected pane; typing `f` while editing a search query inserts text instead of opening filters. Project filters remain planned until project metadata is available.
+
+Launching a session clears active provider/status filters so the new session is visible and selected.
