@@ -116,7 +116,11 @@ func NewModelWithRefreshInterval(interval time.Duration) Model {
 
 // NewModelWithConfig creates a model with startup settings and copied project presets.
 func NewModelWithConfig(settings config.Config) Model {
-	backend := tmux.Client{}
+	arguments := make(map[string][]string, len(settings.ProviderArgs))
+	for provider, args := range settings.ProviderArgs {
+		arguments[provider] = append([]string{}, args...)
+	}
+	backend := tmux.Client{ProviderArgs: arguments}
 	m := NewModelWithBackend(backend, monitor.New(backend))
 	if settings.RefreshInterval >= 100*time.Millisecond && settings.RefreshInterval <= time.Minute {
 		m.interval = settings.RefreshInterval

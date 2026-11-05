@@ -58,20 +58,20 @@ func lifecycleOutput(args ...string) ([]byte, error) {
 
 // CreateSession starts an agent in a new detached, uniquely named tmux session.
 // Multiple command arguments make tmux execute env directly instead of a shell.
-func (Client) CreateSession(directory, command string) (Pane, error) {
+func (c Client) CreateSession(directory, command string) (Pane, error) {
 	switch command {
 	case "claude", "codex", "gemini":
 	default:
 		return Pane{}, fmt.Errorf("unsupported agent %q: choose claude, codex, or gemini", command)
 	}
-	return createSession(directory, command, false)
+	return createSession(directory, command, false, c.ProviderArgs[command])
 }
 
 func (Client) CreateShellSession(directory string) (Pane, error) {
-	return createSession(directory, "zsh", true)
+	return createSession(directory, "zsh", true, nil)
 }
 
-func createSession(directory, command string, shell bool) (Pane, error) {
+func createSession(directory, command string, shell bool, providerArgs []string) (Pane, error) {
 	directory, err := filepath.Abs(directory)
 	if err != nil {
 		return Pane{}, fmt.Errorf("resolve project directory: %w", err)
@@ -106,8 +106,20 @@ func createSession(directory, command string, shell bool) (Pane, error) {
 	name := fmt.Sprintf("aeolus-%s-%x", command, nonce)
 	format := "#{pane_id}\t#{session_id}\t#{session_name}\t#{window_index}"
 	args := []string{"new-session", "-d", "-P", "-F", format, "-s", name, "-n", command, "-c", literalFormatArgument(directory), "--", env, executable}
+<<<<<<< HEAD
 	if shell {
 		args = append(args, "-i")
+	}
+	for _, arg := range providerArgs {
+		for _, r := range arg {
+			if unicode.IsControl(r) {
+				return Pane{}, fmt.Errorf("provider arguments cannot contain control characters")
+			}
+		}
+		if strings.HasSuffix(arg, ";") {
+			arg = arg[:len(arg)-1] + `\;`
+		}
+		args = append(args, arg)
 	}
 	out, err := lifecycleOutput(args...)
 	if err != nil {
