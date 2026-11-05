@@ -148,6 +148,8 @@ type Model struct {
 	tmuxMissing bool
 	confirmKill string
 	search      outputSearch
+	filters     sessionFilters
+	allSessions []monitor.Session
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -236,17 +238,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.err = nil
 			m.tmuxMissing = false
-			selected := ""
-			if m.cursor < len(m.sessions) {
-				selected = m.sessions[m.cursor].Pane.PaneID
-			}
-			m.sessions = msg.sessions
-			for i, session := range m.sessions {
-				if session.Pane.PaneID == selected {
-					m.cursor = i
-					break
-				}
-			}
+			selected := m.selectedPaneID()
+			m.allSessions = append([]monitor.Session{}, msg.sessions...)
+			m.rebuildFilteredSessions(selected)
 			m.lastRefresh = time.Now()
 			// Clamp cursor
 			if m.cursor >= len(m.sessions) && len(m.sessions) > 0 {
@@ -267,7 +261,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.confirmKill = ""
-		m.sessions = removePane(m.sessions, msg.paneID)
+		selected := m.selectedPaneID()
+		m.syncFilterSource()
+		m.allSessions = removePane(m.allSessions, msg.paneID)
+		m.rebuildFilteredSessions(selected)
 		if m.cursor >= len(m.sessions) && len(m.sessions) > 0 {
 			m.cursor = len(m.sessions) - 1
 		}
@@ -291,6 +288,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			return m, nil
+		}
+
+		if m.filters.editing || (!m.search.editing && msg.String() == "f") {
+			if m.filterKey(msg) {
+				if m.quitting {
+					return m, tea.Quit
+				}
+				return m, nil
+			}
 		}
 
 		if m.searchKey(msg) {
@@ -374,6 +380,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		}
+		if msg.String() == "y" || msg.String() == "a" || msg.String() == "n" {
+			m.applyFilters()
+		}
 	}
 
 	// Let viewport handle scroll keys if focus is there
@@ -420,7 +429,7 @@ func contentPaneWidth(total int) int {
 }
 
 func contentPaneHeight(total int) int {
-	h := total - 7 // header + help bar + borders
+	h := total - 8 // header + help bar + borders
 	if h < 5 {
 		h = 5
 	}
@@ -433,6 +442,11 @@ func contentPaneHeight(total int) int {
 // - permission sessions: top (so the parsed summary is immediately visible)
 // - others: bottom (so the most recent terminal output is visible)
 func (m *Model) updateViewport() {
+	if m.filters.editing {
+		m.viewport.SetContent("Filter sessions\n\n" + m.filters.draft.description() + "\n\n[p] Cycle provider  [s] Cycle status\n[c] Clear both  [enter] Apply  [esc] Cancel")
+		m.viewport.GotoTop()
+		return
+	}
 	if m.search.active() {
 		m.updateSearchViewport()
 		if m.search.active() {
@@ -570,6 +584,7 @@ func (m Model) View() string {
 		)
 	}
 	header := lipgloss.JoinHorizontal(lipgloss.Top, title, ts)
+	header += "\n" + styleHelp.Render(m.filterSummary())
 
 	// Error state
 	if m.tmuxMissing {
@@ -646,7 +661,7 @@ func (m Model) renderSessionList(width, height int) string {
 		return lipgloss.NewStyle().
 			Foreground(colorNoClaud).
 			Italic(true).
-			Render("No supported agent sessions found")
+			Render("No sessions match the current filters")
 	}
 
 	var sb strings.Builder
@@ -708,10 +723,13 @@ func (m Model) helpBar() string {
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
-	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [x] Kill pane  [r] Refresh  [/] Search  [q] Quit")
+	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [x] Kill pane  [r] Refresh  [f] Filter  [/] Search  [q] Quit")
 }
 
 func (m Model) footer() string {
+	if m.filters.editing {
+		return styleHelp.Render("[p] Provider  [s] Status  [c] Clear  [enter] Apply  [esc] Cancel")
+	}
 	if m.search.active() {
 		return m.searchHelp()
 	}
