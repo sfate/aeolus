@@ -148,6 +148,7 @@ type Model struct {
 	tmuxMissing bool
 	confirmKill string
 	search      outputSearch
+	lifecycle   lifecycleForm
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -213,6 +214,9 @@ func (m Model) doKillPane(paneID string) tea.Cmd {
 // Update handles incoming messages and user input.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	case lifecycleMsg:
+		return m.finishLifecycle(msg)
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -291,6 +295,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			return m, nil
+		}
+
+		if handled, cmd := m.lifecycleKey(msg); handled {
+			return m, cmd
 		}
 
 		if m.searchKey(msg) {
@@ -571,6 +579,10 @@ func (m Model) View() string {
 	}
 	header := lipgloss.JoinHorizontal(lipgloss.Top, title, ts)
 
+	if m.lifecycle.kind != lifecycleNone {
+		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.lifecycleView())
+	}
+
 	// Error state
 	if m.tmuxMissing {
 		errMsg := lipgloss.NewStyle().
@@ -708,7 +720,7 @@ func (m Model) helpBar() string {
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
-	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [x] Kill pane  [r] Refresh  [/] Search  [q] Quit")
+	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [/] Search  [q] Quit")
 }
 
 func (m Model) footer() string {

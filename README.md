@@ -17,6 +17,7 @@ Aeolus is a TUI dashboard for managing [Claude Code](https://claude.ai/code), [C
 - Auto-refreshes every 2 seconds by default
 - Colored pane preview with live terminal output
 - Search the selected session capture without switching panes
+- Launch agents in a chosen directory and rename their tmux windows
 
 ## Usage
 
@@ -33,12 +34,20 @@ make run     # go run .
 | `y` | Approve Claude permission request / answer yes |
 | `a` | Approve Claude permission request for the session |
 | `n` | Deny Claude permission request / answer no |
+| `c` | Launch a new agent session |
+| `R` | Rename the selected pane's window |
 | `x` | Kill selected pane after confirmation |
 | `r` | Force refresh |
 | `/` | Edit a captured-output search |
 | `ctrl+n` / `ctrl+p` | Next / previous matching line |
 | `esc` | Cancel query editing or clear the search |
 | `q` | Quit |
+
+## Session lifecycle
+
+Press `c` to open the launch form. Use tab or shift+tab to choose Claude, Codex, or Gemini, edit the project directory, and press enter. The directory must exist and the selected agent must be on PATH. Absolute paths, relative paths, and `~/` paths are supported. Launch creates a uniquely named detached tmux session and selects it in the dashboard. It works outside tmux and can start a missing tmux server. Agent authentication and setup remain in the agent itself; open its pane to interact.
+
+Press `R` to rename the window containing the selected pane. This affects all panes sharing that window. Names must contain 1 to 80 characters and cannot contain control characters or `|`. Both forms support cursor movement, home/end, backspace/delete, and ctrl+u. Esc cancels before submission; submitted operations stay locked until completion. Errors retain the form input for correction. Existing enter-to-pane navigation and confirmed pane termination remain available outside the forms.
 
 ## Configuration
 
