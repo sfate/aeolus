@@ -47,6 +47,7 @@ make run     # go run .
 | `i` | Compose a prompt for the selected session |
 | `ctrl+n` / `ctrl+p` | Next / previous matching line |
 | `esc` | Cancel query editing or clear the search |
+| `!` | Acknowledge the selected session's unread attention |
 | `q` | Quit |
 | `?` | Open contextual keyboard help |
 | `ctrl+k` | Search dashboard actions in the command palette |
@@ -64,6 +65,12 @@ Approval and yes/no response keys run asynchronously. While a response is being 
 Press `ctrl+k` from the dashboard to search available actions. Type a case-insensitive substring, select with up/down or ctrl+p/ctrl+n, and press Enter to execute. Escape cancels. The palette uses the same handlers as dashboard shortcuts, so choosing Kill pane opens the existing confirmation before termination. Launch, rename, and composer actions appear only when the backend supports them; approval actions require a supported request from the original selected provider. If that pane disappears or changes provider, its actions become unavailable until you close and reopen the palette. Background refresh does not retarget a pending selection to another session.
 
 Edit the query with left/right, Home/End or ctrl+a/ctrl+e, Backspace/Delete, and ctrl+u to clear. Ordinary letters, including dashboard shortcuts, stay query text. Open the palette after closing other modals; Ctrl+C quits from the palette.
+
+## Attention indicators
+
+Observed Claude transitions into permission or question states, and from working to idle, add an unread `!` marker to the session. The header counts unread sessions, including those hidden by filters. Select a session and press `!` to acknowledge its latest event. Visiting a pane, responding, or later activity does not acknowledge it automatically. Composer and text-entry forms keep `!` as ordinary input.
+
+Initial snapshots and newly discovered panes establish a baseline without alerts. Removed panes lose their badges; disappearance is not interpreted as task completion. Unknown activity and unsupported providers do not produce inferred completion events. Idle means the existing detector observed an idle state, not that a task succeeded. Indicators are local to the running dashboard and are not persisted.
 
 ## Session lifecycle
 
