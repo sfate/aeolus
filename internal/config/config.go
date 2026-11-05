@@ -14,6 +14,7 @@ const DefaultRefreshInterval = 2 * time.Second
 
 // Config contains validated runtime settings.
 type Config struct {
+	Keybindings     map[string]string
 	RefreshInterval time.Duration
 	Projects        []Project
 	DefaultProvider string
@@ -90,6 +91,12 @@ func decode(r io.Reader) (Config, error) {
 			if err = json.Unmarshal(raw, &version); err != nil || version != 1 {
 				return result, fmt.Errorf("version must be 1")
 			}
+		case "keybindings":
+			keys, err := decodeKeys(raw)
+			if err != nil {
+				return result, err
+			}
+			result.Keybindings = keys
 		case "default_provider":
 			var value string
 			if err = json.Unmarshal(raw, &value); err != nil || !supportedProvider(value) {

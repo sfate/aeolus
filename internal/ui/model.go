@@ -134,6 +134,7 @@ type SessionMonitor interface {
 
 // Model is the main Bubble Tea model for Aeolus.
 type Model struct {
+	keybindings     map[string]string
 	interval        time.Duration
 	projects        []config.Project
 	defaultProvider string
@@ -175,6 +176,10 @@ func NewModelWithConfig(settings config.Config) Model {
 	}
 	m.defaultProvider = string(launchProviders[launchProviderIndex(settings.DefaultProvider)])
 	m.projects = append([]config.Project{}, settings.Projects...)
+	m.keybindings = make(map[string]string, len(settings.Keybindings))
+	for action, key := range settings.Keybindings {
+		m.keybindings[action] = key
+	}
 	return m
 }
 
@@ -305,6 +310,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.confirmKill == "" && !m.review.active && !m.composer.active && !m.filters.editing && m.lifecycle.kind == lifecycleNone && !m.search.editing {
+			mapped, ok := m.dashboardKey(msg)
+			if !ok {
+				return m, nil
+			}
+			msg = mapped
+		}
 		if m.confirmKill != "" {
 			switch msg.String() {
 			case "y":
@@ -786,7 +798,7 @@ func (m Model) helpBar() string {
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
-	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [g] Git review  [f] Filter  [/] Search  [i] Compose  [q] Quit")
+	return styleHelp.Render(m.shortcutHelp("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [g] Git review  [f] Filter  [/] Search  [i] Compose  [q] Quit"))
 }
 
 func (m Model) footer() string {
