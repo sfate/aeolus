@@ -14,7 +14,7 @@ Aeolus is a TUI dashboard for managing [Claude Code](https://claude.ai/code), [C
 - Shows Claude session status: idle, working, waiting for permission, or waiting for an answer
 - Approve / deny Claude requests with a single keypress
 - Shows Codex and Gemini activity as unknown; use `enter` to inspect and respond in the pane
-- Auto-refreshes every 2 seconds
+- Auto-refreshes every 2 seconds by default
 - Colored pane preview with live terminal output
 - Search the selected session capture without switching panes
 
@@ -39,6 +39,16 @@ make run     # go run .
 | `ctrl+n` / `ctrl+p` | Next / previous matching line |
 | `esc` | Cancel query editing or clear the search |
 | `q` | Quit |
+
+## Configuration
+
+Aeolus reads `$XDG_CONFIG_HOME/aeolus/config.json`, or `~/.config/aeolus/config.json` when `XDG_CONFIG_HOME` is unset. A missing default file uses defaults. Set `XDG_CONFIG_HOME` to an absolute path when overriding it.
+
+```json
+{"version": 1, "refresh_interval": "3s"}
+```
+
+Use `aeolus --config /path/to/config.json` to select another file. An explicitly selected file must exist. The version field is required and must be `1`; `refresh_interval` is optional and defaults to `2s`. Its allowed range is `100ms` through `1m`. Invalid files, duplicate or unknown fields, and unsupported versions produce an error before the TUI starts. Settings are read at startup. This first configuration slice supports the polling interval only.
 
 ## Output search
 

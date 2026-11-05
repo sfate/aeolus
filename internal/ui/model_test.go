@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -285,5 +286,17 @@ func TestInjectedRefreshError(t *testing.T) {
 	result := m.doRefresh()().(refreshMsg)
 	if !errors.Is(result.err, expected) {
 		t.Fatalf("error=%v", result.err)
+	}
+}
+
+func TestRefreshIntervalConfiguration(t *testing.T) {
+	if got := NewModel().interval; got != 2*time.Second {
+		t.Fatalf("default interval=%v", got)
+	}
+	if got := NewModelWithRefreshInterval(5 * time.Second).interval; got != 5*time.Second {
+		t.Fatalf("configured interval=%v", got)
+	}
+	if got := NewModelWithRefreshInterval(0).interval; got != 2*time.Second {
+		t.Fatalf("invalid interval=%v", got)
 	}
 }
