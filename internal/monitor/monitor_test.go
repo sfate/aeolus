@@ -59,6 +59,9 @@ func TestIsClaudeProcess(t *testing.T) {
 		"bash",
 		"zsh",
 		"node server.js",
+		"echo claude",
+		"/opt/claude-tools/server",
+		"claude-notes",
 		"vim",
 		"git commit -m 'add claudefile'", // contains "claud" but not as a binary
 		"python main.py",

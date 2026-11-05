@@ -18,7 +18,7 @@ func stripANSI(s string) string {
 	return reANSI.ReplaceAllString(s, "")
 }
 
-// Status represents the current state of a Claude Code session.
+// Status represents the detected activity state of an agent session.
 type Status int
 
 const (
@@ -61,8 +61,9 @@ type QuestionRequest struct {
 	RawText string // full captured context
 }
 
-// Session represents a tmux pane and its detected Claude Code state.
+// Session represents a tmux pane and its detected agent state.
 type Session struct {
+	Provider  Provider
 	Pane      tmux.Pane
 	Status    Status
 	Request   *PermissionRequest
@@ -118,16 +119,7 @@ func buildChildMap(procs []processInfo) map[int][]int {
 
 // isClaudeProcess returns true if the process args look like a Claude Code process.
 func isClaudeProcess(args string) bool {
-	lower := strings.ToLower(args)
-	// Match common claude binary patterns
-	if strings.Contains(lower, "/claude") ||
-		strings.Contains(lower, "claude-code") ||
-		strings.HasSuffix(lower, " claude") ||
-		strings.Contains(lower, " claude ") ||
-		strings.HasPrefix(lower, "claude") {
-		return true
-	}
-	return false
+	return providerForProcess(args) == ProviderClaude
 }
 
 // hasClaudeDescendant checks if any descendant of rootPID is a Claude process.
@@ -442,7 +434,7 @@ func detectClaudeStatus(content string) (Status, *PermissionRequest, *QuestionRe
 	return StatusIdle, nil, nil
 }
 
-// DetectSession captures pane content and determines the Claude Code status.
+// DetectSession captures pane content and determines the provider and activity state.
 func DetectSession(pane tmux.Pane, procs []processInfo) Session {
 	return detectSession(tmux.Client{}, pane, procs)
 }
@@ -454,36 +446,18 @@ func detectSession(backend PaneSource, pane tmux.Pane, procs []processInfo) Sess
 		UpdatedAt: time.Now(),
 	}
 
-	// Capture last 50 lines of pane content
-	content, err := backend.CapturePane(pane.PaneID, 50)
-	if err != nil {
-		session.Status = StatusUnknown
-		return session
-	}
-	session.Content = content
-
-	// Build process maps for tree traversal
-	procMap := make(map[int]processInfo, len(procs))
-	for _, p := range procs {
-		procMap[p.PID] = p
-	}
-	children := buildChildMap(procs)
-
-	// Check if any descendant of the pane PID is a Claude process
-	visited := make(map[int]bool)
-	claudeRunning := hasClaudeDescendant(pane.PID, children, procMap, visited)
-
-	// Also check if the current command itself is claude
-	if !claudeRunning && isClaudeProcess(pane.CurrentCommand) {
-		claudeRunning = true
-	}
-
-	if !claudeRunning {
+	session.Provider = paneProvider(pane.PID, procs, pane.CurrentCommand)
+	if session.Provider == ProviderUnknown {
 		session.Status = StatusNoClaud
 		return session
 	}
 
-	session.Status, session.Request, session.Question = detectClaudeStatus(content)
+	content, err := backend.CapturePane(pane.PaneID, 50)
+	if err != nil {
+		return session
+	}
+	session.Content = content
+	session.Status, session.Request, session.Question = detectProviderStatus(session.Provider, content)
 
 	return session
 }
@@ -519,10 +493,10 @@ func (m *Monitor) Refresh(panes []tmux.Pane) []Session {
 		sessions = append(sessions, detectSession(m.backend, pane, procs))
 	}
 
-	// Only include panes where Claude is actually running, preserving pane order.
+	// Keep detected providers, including unsupported or unreadable activity states.
 	sorted := make([]Session, 0, len(sessions))
 	for _, s := range sessions {
-		if s.Status != StatusNoClaud && s.Status != StatusUnknown {
+		if s.Provider != ProviderUnknown {
 			sorted = append(sorted, s)
 		}
 	}
