@@ -468,7 +468,7 @@ func (m *Model) updateViewport() {
 		return
 	}
 	if m.filters.editing {
-		m.viewport.SetContent("Filter sessions\n\n" + m.filters.draft.description() + "\n\n[p] Cycle provider  [s] Cycle status\n[c] Clear both  [enter] Apply  [esc] Cancel")
+		m.viewport.SetContent(m.filterModalText())
 		m.viewport.GotoTop()
 		return
 	}
@@ -760,7 +760,7 @@ func (m Model) footer() string {
 		return styleHelp.Render("[enter] New line  [ctrl+s] Send  [esc] Cancel")
 	}
 	if m.filters.editing {
-		return styleHelp.Render("[p] Provider  [s] Status  [c] Clear  [enter] Apply  [esc] Cancel")
+		return styleHelp.Render("[tab] Controls/directory text  [enter] Apply  [esc] Cancel")
 	}
 	if m.search.active() {
 		return m.searchHelp()
