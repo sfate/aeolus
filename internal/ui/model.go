@@ -164,6 +164,7 @@ type Model struct {
 	refreshObsolete bool
 	response        *pendingResponse
 	responseID      uint64
+	worktree        worktreeForm
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -247,6 +248,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case responseSentMsg:
 		m.finishResponse(msg)
 		return m, nil
+	case worktreeCreatedMsg:
+		return m.finishWorktreeCreate(msg)
+
+	case worktreeLaunchedMsg:
+		return m.finishWorktreeLaunch(msg)
 
 	case gitReviewMsg:
 		m.finishGitReview(msg)
@@ -372,6 +378,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			return m, nil
+		}
+
+		if m.worktree.active || (!m.composer.active && !m.filters.editing && m.lifecycle.kind == lifecycleNone && !m.search.editing && !m.review.active) {
+			if handled, cmd := m.worktreeKey(msg); handled {
+				return m, cmd
+			}
 		}
 
 		if m.review.active || (!m.composer.active && !m.filters.editing && m.lifecycle.kind == lifecycleNone && !m.search.editing) {
@@ -656,6 +668,9 @@ func (m Model) View() string {
 	header := lipgloss.JoinHorizontal(lipgloss.Top, title, ts)
 	header += "\n" + styleHelp.Render(m.filterSummary())
 
+	if m.worktree.active {
+		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.worktreeView())
+	}
 	if m.review.active {
 		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.gitReviewView())
 	}
@@ -804,7 +819,7 @@ func (m Model) helpBar() string {
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
-	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [g] Git review  [f] Filter  [/] Search  [i] Compose  [?] Help  [q] Quit")
+	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [g] Git review  [W] Worktree  [f] Filter  [/] Search  [i] Compose  [?] Help  [q] Quit")
 }
 
 func (m Model) footer() string {

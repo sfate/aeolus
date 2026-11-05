@@ -18,6 +18,10 @@ Track implementation and review progress in [the parent issue](https://github.co
 - [Context and agent integrations](https://github.com/sfate/aeolus/issues/13): Attach local files and reusable prompts; configure integrations supported by each agent provider without inventing unsupported provider APIs.
 - [TUI usability](https://github.com/sfate/aeolus/issues/14): Add a command palette, contextual help, themes, narrow-terminal layouts, and attention indicators. Verify keyboard-only workflows.
 
+## Worktree launch slice
+
+Issue #36 adds explicit creation of a new branch and isolated checkout followed by an agent launch. Creation failures retain artifacts; launch failures retry launch only. Read-only Git review remains available independently.
+
 ## Review contract
 
 Each implementation PR links its issue, describes user-visible behavior, records automated and manual verification, and remains open for review. Split oversized issues before implementation. Dependent changes must identify their base PR and remain independently understandable.
