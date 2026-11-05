@@ -153,7 +153,7 @@ func (m Model) searchHelp() string {
 	if m.search.editing {
 		r := []rune(query)
 		query = string(r[:m.search.position]) + "▏" + string(r[m.search.position:])
-		return styleHelp.Render(fmt.Sprintf("Search: %s  (%d/%d matching lines)  [enter] Keep  [esc] Cancel", query, current, len(m.search.matches)))
+		return m.theme.styleHelp.Render(fmt.Sprintf("Search: %s  (%d/%d matching lines)  [enter] Keep  [esc] Cancel", query, current, len(m.search.matches)))
 	}
-	return styleHelp.Render(fmt.Sprintf("Search: %s  (%d/%d matching lines)  [ctrl+n/p] Next/previous  [/] Edit  [esc] Clear", query, current, len(m.search.matches)))
+	return m.theme.styleHelp.Render(fmt.Sprintf("Search: %s  (%d/%d matching lines)  [ctrl+n/p] Next/previous  [/] Edit  [esc] Clear", query, current, len(m.search.matches)))
 }
