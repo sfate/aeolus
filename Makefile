@@ -4,6 +4,7 @@ TEST_DIR ?= ./...
 TEST_CASE ?= ^.+$
 BINARY_NAME ?= aeolus
 BUILD_OUTPUT ?= bin/$(BINARY_NAME)
+DEV_BUILD_OUTPUT ?= $(HOME)/.local/bin/$(BINARY_NAME)
 
 run:
 	go run .
@@ -11,6 +12,10 @@ run:
 build:
 	mkdir -p $(dir $(BUILD_OUTPUT))
 	go build -mod=readonly -o $(BUILD_OUTPUT) .
+
+dev-build: build
+	mkdir -p "$(dir $(DEV_BUILD_OUTPUT))"
+	ln -sf "$(PWD)/$(BUILD_OUTPUT)" "$(DEV_BUILD_OUTPUT)"
 
 lint:
 	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0 run --allow-parallel-runners

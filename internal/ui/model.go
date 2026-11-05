@@ -126,8 +126,15 @@ func sessionLabel(s monitor.Session) string {
 
 // ---- Model -------------------------------------------------------------------
 
+// SessionMonitor supplies detected sessions to the TUI.
+type SessionMonitor interface {
+	Refresh([]tmux.Pane) []monitor.Session
+}
+
 // Model is the main Bubble Tea model for Aeolus.
 type Model struct {
+	backend     tmux.Backend
+	monitor     SessionMonitor
 	sessions    []monitor.Session
 	cursor      int
 	width       int
@@ -142,11 +149,19 @@ type Model struct {
 
 // NewModel creates a new Model with sensible defaults.
 func NewModel() Model {
+	backend := tmux.Client{}
+	return NewModelWithBackend(backend, monitor.New(backend))
+}
+
+// NewModelWithBackend creates a TUI with injectable transport and state detection.
+func NewModelWithBackend(backend tmux.Backend, sessionMonitor SessionMonitor) Model {
 	vp := viewport.New(80, 20)
 	// Disable lipgloss word-wrap so raw ANSI escape sequences pass through intact.
 	vp.Style = lipgloss.NewStyle()
 	return Model{
 		viewport: vp,
+		backend:  backend,
+		monitor:  sessionMonitor,
 	}
 }
 
@@ -154,7 +169,7 @@ func NewModel() Model {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		tick(),
-		doRefresh(),
+		m.doRefresh(),
 	)
 }
 
@@ -164,22 +179,22 @@ func tick() tea.Cmd {
 	})
 }
 
-func doRefresh() tea.Cmd {
+func (m Model) doRefresh() tea.Cmd {
 	return func() tea.Msg {
-		panes, err := tmux.ListAllPanes()
+		panes, err := m.backend.ListAllPanes()
 		if err != nil {
 			return refreshMsg{err: err}
 		}
-		sessions := monitor.Refresh(panes)
+		sessions := m.monitor.Refresh(panes)
 		return refreshMsg{sessions: sessions}
 	}
 }
 
-func doKillPane(paneID string) tea.Cmd {
+func (m Model) doKillPane(paneID string) tea.Cmd {
 	return func() tea.Msg {
 		return killPaneMsg{
 			paneID: paneID,
-			err:    tmux.KillPane(paneID),
+			err:    m.backend.KillPane(paneID),
 		}
 	}
 }
@@ -197,7 +212,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		return m, tea.Batch(tick(), doRefresh())
+		return m, tea.Batch(tick(), m.doRefresh())
 
 	case refreshMsg:
 		if msg.err != nil {
@@ -236,7 +251,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursor = len(m.sessions) - 1
 		}
 		m.updateViewport()
-		return m, doRefresh()
+		return m, m.doRefresh()
 
 	case tea.KeyMsg:
 		if m.confirmKill != "" {
@@ -245,7 +260,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				paneID := m.confirmKill
 				m.confirmKill = ""
 				m.updateViewport()
-				return m, doKillPane(paneID)
+				return m, m.doKillPane(paneID)
 			case "n", "esc":
 				m.confirmKill = ""
 				m.updateViewport()
@@ -275,12 +290,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s := m.sessions[m.cursor]
 				switch s.Status {
 				case monitor.StatusPermission:
-					_ = tmux.SendKeys(s.Pane.PaneID, "y")
+					_ = m.backend.SendKeys(s.Pane.PaneID, "y")
 					m.sessions[m.cursor].Status = monitor.StatusWorking
 					m.sessions[m.cursor].Request = nil
 					m.updateViewport()
 				case monitor.StatusQuestion:
-					_ = tmux.SendKeys(s.Pane.PaneID, "y")
+					_ = m.backend.SendKeys(s.Pane.PaneID, "y")
 					m.sessions[m.cursor].Status = monitor.StatusWorking
 					m.sessions[m.cursor].Question = nil
 					m.updateViewport()
@@ -290,7 +305,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(m.sessions) {
 				s := m.sessions[m.cursor]
 				if s.Status == monitor.StatusPermission {
-					_ = tmux.SendKeySequence(s.Pane.PaneID, "Down", "Enter")
+					_ = m.backend.SendKeySequence(s.Pane.PaneID, "Down", "Enter")
 					m.sessions[m.cursor].Status = monitor.StatusWorking
 					m.sessions[m.cursor].Request = nil
 					m.updateViewport()
@@ -301,12 +316,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s := m.sessions[m.cursor]
 				switch s.Status {
 				case monitor.StatusPermission:
-					_ = tmux.SendKeys(s.Pane.PaneID, "n")
+					_ = m.backend.SendKeys(s.Pane.PaneID, "n")
 					m.sessions[m.cursor].Status = monitor.StatusIdle
 					m.sessions[m.cursor].Request = nil
 					m.updateViewport()
 				case monitor.StatusQuestion:
-					_ = tmux.SendKeys(s.Pane.PaneID, "n")
+					_ = m.backend.SendKeys(s.Pane.PaneID, "n")
 					m.sessions[m.cursor].Status = monitor.StatusIdle
 					m.sessions[m.cursor].Question = nil
 					m.updateViewport()
@@ -315,7 +330,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if m.cursor < len(m.sessions) {
 				s := m.sessions[m.cursor]
-				if err := tmux.SwitchToPane(s.Pane); err != nil {
+				if err := m.backend.SwitchToPane(s.Pane); err != nil {
 					m.err = err
 				}
 			}
@@ -325,7 +340,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateViewport()
 			}
 		case "r":
-			return m, doRefresh()
+			return m, m.doRefresh()
 		case "q", "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit

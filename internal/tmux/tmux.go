@@ -126,3 +126,25 @@ func KillPane(paneID string) error {
 	}
 	return nil
 }
+
+// Backend is the pane transport used by the monitor and TUI.
+type Backend interface {
+	ListAllPanes() ([]Pane, error)
+	CapturePane(string, int) (string, error)
+	SendKeys(string, string) error
+	SendKeySequence(string, ...string) error
+	SwitchToPane(Pane) error
+	KillPane(string) error
+}
+
+// Client executes pane operations through the local tmux executable.
+type Client struct{}
+
+func (Client) ListAllPanes() ([]Pane, error)                    { return ListAllPanes() }
+func (Client) CapturePane(id string, lines int) (string, error) { return CapturePane(id, lines) }
+func (Client) SendKeys(id, keys string) error                   { return SendKeys(id, keys) }
+func (Client) SendKeySequence(id string, keys ...string) error  { return SendKeySequence(id, keys...) }
+func (Client) SwitchToPane(pane Pane) error                     { return SwitchToPane(pane) }
+func (Client) KillPane(id string) error                         { return KillPane(id) }
+
+var _ Backend = Client{}

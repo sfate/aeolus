@@ -205,3 +205,84 @@ func TestRefreshClearsStaleKillConfirmation(t *testing.T) {
 		t.Fatalf("sessions after refresh = %#v, want only %%1", m.sessions)
 	}
 }
+
+type fakeBackend struct {
+	listErr error
+	tmux.Backend
+	panes    []tmux.Pane
+	killed   string
+	switched string
+	sent     string
+}
+
+func (f *fakeBackend) ListAllPanes() ([]tmux.Pane, error) { return f.panes, f.listErr }
+func (f *fakeBackend) KillPane(id string) error           { f.killed = id; return nil }
+func (f *fakeBackend) SwitchToPane(p tmux.Pane) error     { f.switched = p.PaneID; return nil }
+func (f *fakeBackend) SendKeys(id, text string) error     { f.sent = id + ":" + text; return nil }
+func (f *fakeBackend) SendKeySequence(id string, keys ...string) error {
+	f.sent = id + ":" + strings.Join(keys, ",")
+	return nil
+}
+
+type fakeMonitor struct{ panes []tmux.Pane }
+
+func (f *fakeMonitor) Refresh(panes []tmux.Pane) []monitor.Session {
+	f.panes = panes
+	return []monitor.Session{testSession(panes[0].PaneID)}
+}
+
+func TestInjectedBackend(t *testing.T) {
+	backend := &fakeBackend{panes: []tmux.Pane{{PaneID: "%7"}}}
+	detector := &fakeMonitor{}
+	m := NewModelWithBackend(backend, detector)
+	result := m.doRefresh()().(refreshMsg)
+	if result.err != nil || len(detector.panes) != 1 || result.sessions[0].Pane.PaneID != "%7" {
+		t.Fatalf("refresh=%#v", result)
+	}
+	m.sessions = result.sessions
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if backend.switched != "%7" {
+		t.Fatal("switch did not use backend")
+	}
+	m.sessions[0].Status = monitor.StatusPermission
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if backend.sent != "%7:Down,Enter" {
+		t.Fatalf("sent=%q", backend.sent)
+	}
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	_, cmd := updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	msg := cmd().(killPaneMsg)
+	if msg.err != nil || backend.killed != "%7" {
+		t.Fatalf("kill=%#v", msg)
+	}
+}
+
+func TestInjectedResponseKeys(t *testing.T) {
+	for _, key := range []rune{'y', 'n'} {
+		for _, status := range []monitor.Status{monitor.StatusPermission, monitor.StatusQuestion} {
+			backend := &fakeBackend{}
+			m := NewModelWithBackend(backend, &fakeMonitor{})
+			m.sessions = []monitor.Session{testSession("%1")}
+			m.sessions[0].Status = status
+			m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
+			if backend.sent != "%1:"+string(key) {
+				t.Fatalf("key %c status %v sent %q", key, status, backend.sent)
+			}
+			want := monitor.StatusWorking
+			if key == 'n' {
+				want = monitor.StatusIdle
+			}
+			if m.sessions[0].Status != want {
+				t.Fatalf("status %v want %v", m.sessions[0].Status, want)
+			}
+		}
+	}
+}
+func TestInjectedRefreshError(t *testing.T) {
+	expected := errors.New("no server")
+	m := NewModelWithBackend(&fakeBackend{listErr: expected}, nil)
+	result := m.doRefresh()().(refreshMsg)
+	if !errors.Is(result.err, expected) {
+		t.Fatalf("error=%v", result.err)
+	}
+}
