@@ -135,7 +135,7 @@ func (m Model) filterSummary() string {
 	if m.allSessions == nil {
 		total = len(m.sessions)
 	}
-	summary := fmt.Sprintf("%s  Sessions: %d/%d", m.filters.applied.description(), len(m.sessions), total)
+	summary := m.attentionSummary() + fmt.Sprintf("%s  Sessions: %d/%d", m.filters.applied.description(), len(m.sessions), total)
 	if m.cursor >= 0 && m.cursor < len(m.sessions) {
 		summary += fmt.Sprintf("  Selected dir: %q", m.sessions[m.cursor].Pane.CurrentPath)
 	}
