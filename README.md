@@ -45,7 +45,14 @@ make run     # go run .
 | `i` | Compose a prompt for the selected session |
 | `ctrl+n` / `ctrl+p` | Next / previous matching line |
 | `esc` | Cancel query editing or clear the search |
+| `!` | Acknowledge the selected session's unread attention |
 | `q` | Quit |
+
+## Attention indicators
+
+Observed Claude transitions into permission or question states, and from working to idle, add an unread `!` marker to the session. The header counts unread sessions, including those hidden by filters. Select a session and press `!` to acknowledge its latest event. Visiting a pane, responding, or later activity does not acknowledge it automatically. Composer and text-entry forms keep `!` as ordinary input.
+
+Initial snapshots and newly discovered panes establish a baseline without alerts. Removed panes lose their badges; disappearance is not interpreted as task completion. Unknown activity and unsupported providers do not produce inferred completion events. Idle means the existing detector observed an idle state, not that a task succeeded. Indicators are local to the running dashboard and are not persisted.
 
 ## Session lifecycle
 
