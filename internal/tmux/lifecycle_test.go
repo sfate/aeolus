@@ -120,6 +120,7 @@ func TestCreateSessionMarksUncertainTmuxResult(t *testing.T) {
 			t.Fatalf("launch uncertainty unmarked: %v", err)
 		}
 	}
+}
 
 func TestConfiguredProviderArgumentsAreLiteral(t *testing.T) {
 	_, log := fakeLifecycleTmux(t)

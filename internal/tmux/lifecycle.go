@@ -106,7 +106,6 @@ func createSession(directory, command string, shell bool, providerArgs []string)
 	name := fmt.Sprintf("aeolus-%s-%x", command, nonce)
 	format := "#{pane_id}\t#{session_id}\t#{session_name}\t#{window_index}"
 	args := []string{"new-session", "-d", "-P", "-F", format, "-s", name, "-n", command, "-c", literalFormatArgument(directory), "--", env, executable}
-<<<<<<< HEAD
 	if shell {
 		args = append(args, "-i")
 	}
