@@ -83,6 +83,14 @@ The draft stays bound to the original pane and provider across refreshes. If tha
 
 Text is pasted through a uniquely named tmux buffer and followed by a separate Enter only after paste succeeds. Words such as `Enter` and `Escape` remain literal. Newlines and tabs are allowed; other terminal control characters are rejected by the transport. Bracketed paste is requested when supported by the receiving application; the target application controls how multiline input and the final Enter behave. The temporary buffer is removed after delivery attempts.
 
+## Local command workflows
+
+In an explicit shell session's composer, press `ctrl+w` to open saved workflows. Write a template such as `rg {{pattern}} {{path}}` in the draft, open workflows, press `s`, and enter a unique name to save it. Saving retains the draft. Escape back to the draft, then Escape again to discard it before opening a fresh composer for reuse. Names and templates are saved locally; avoid secrets in saved text.
+
+Select a workflow with arrows or j/k and Enter. Enter each parameter value, using Enter to advance or Tab/Shift+Tab to revisit values. The final Enter inserts the rendered command at the draft cursor for review; templates without parameters insert immediately. Nothing sends automatically. Review the draft and use the normal `ctrl+s` execution step only when ready. Values entered in the parameter form are not persisted.
+
+Placeholders must be standalone unquoted command words, such as `{{path}}`; quoted or concatenated placeholders are rejected. Values are shell-quoted as literals. Use Escape to return from parameter/name entry to the list, then Escape to return to the draft. Ctrl+R reloads and PageUp/PageDown scroll previews. Errors preserve input, duplicate names are rejected, and changed targets block insertion and saving. See [the workflow contract](docs/workflows.md) for storage and syntax limits. Workflows are available only in explicit shell composers.
+
 ## Attach file context
 
 Within the composer, press `ctrl+o`, enter a local file path, and press `enter` to attach it. Relative paths resolve against the original target pane's reported directory; if that directory is unavailable, enter an absolute path. No shell expansion is performed, so use the full home directory path instead of `~`. Press `esc` to return to the draft without attaching.

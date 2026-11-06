@@ -24,7 +24,7 @@ Shell-session foundation is tracked in [child #47](https://github.com/sfate/aeol
 
 ## Workflow delivery
 
-Parameterized workflow storage and rendering are tracked in [child #57](https://github.com/sfate/aeolus/issues/57). TUI save/select/parameter entry will follow in a separate dependent PR; no backend operation executes a command or stores entered parameter values.
+Parameterized workflow storage and rendering are tracked in [child #57](https://github.com/sfate/aeolus/issues/57). TUI save/select/parameter entry is tracked in [child #67](https://github.com/sfate/aeolus/issues/67), with insertion into shell composer drafts for review. No workflow operation sends automatically or stores entered parameter values.
 
 ## Review contract
 

@@ -23,6 +23,7 @@ type promptComposer struct {
 	position        int
 	err             error
 	context         contextInput
+	workflows       workflowModal
 }
 
 func (m *Model) composerKey(msg tea.KeyMsg) (bool, tea.Cmd) {
@@ -41,7 +42,13 @@ func (m *Model) composerKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 	if m.composer.pending {
 		return true, nil
 	}
+	if m.composer.workflows.active {
+		return m.workflowKey(msg)
+	}
 	if handled, cmd := m.contextKey(msg); handled {
+		return true, cmd
+	}
+	if handled, cmd := m.workflowKey(msg); handled {
 		return true, cmd
 	}
 	c := &m.composer
@@ -145,6 +152,11 @@ func lineEnd(r []rune, p int) int {
 	return p
 }
 func (m *Model) updateComposerViewport() {
+	if m.composer.workflows.active {
+		m.viewport.SetContent(m.workflowView())
+		m.viewport.GotoTop()
+		return
+	}
 	if m.composer.context.active {
 		m.viewport.SetContent(m.contextView())
 		m.viewport.GotoTop()

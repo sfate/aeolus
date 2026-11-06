@@ -137,26 +137,28 @@ type SessionMonitor interface {
 
 // Model is the main Bubble Tea model for Aeolus.
 type Model struct {
-	interval       time.Duration
-	backend        tmux.Backend
-	monitor        SessionMonitor
-	sessions       []monitor.Session
-	cursor         int
-	width          int
-	height         int
-	lastRefresh    time.Time
-	err            error
-	quitting       bool
-	viewport       viewport.Model
-	tmuxMissing    bool
-	confirmKill    string
-	search         outputSearch
-	lifecycle      lifecycleForm
-	composer       promptComposer
-	contextRequest uint64
-	filters        sessionFilters
-	allSessions    []monitor.Session
-	review         gitReviewState
+	interval        time.Duration
+	backend         tmux.Backend
+	monitor         SessionMonitor
+	sessions        []monitor.Session
+	cursor          int
+	width           int
+	height          int
+	lastRefresh     time.Time
+	err             error
+	quitting        bool
+	viewport        viewport.Model
+	tmuxMissing     bool
+	confirmKill     string
+	search          outputSearch
+	lifecycle       lifecycleForm
+	composer        promptComposer
+	contextRequest  uint64
+	workflowRequest uint64
+	workflowIO      workflowOperations
+	filters         sessionFilters
+	allSessions     []monitor.Session
+	review          gitReviewState
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -295,6 +297,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case promptSentMsg:
 		m.promptSent(msg)
+		return m, nil
+
+	case workflowResultMsg:
+		m.workflowResult(msg)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -787,8 +793,14 @@ func (m Model) helpBar() string {
 
 func (m Model) footer() string {
 	if m.composer.active {
+		if m.composer.workflows.active {
+			return styleHelp.Render(m.workflowFooter())
+		}
 		if m.composer.context.active {
 			return styleHelp.Render("[enter] Attach for review  [esc] Back to draft")
+		}
+		if m.composer.kind == monitor.SessionShell {
+			return styleHelp.Render("[enter] New line  [ctrl+s] Execute  [ctrl+w] Workflows  [ctrl+o] Attach file  [esc] Cancel")
 		}
 		return styleHelp.Render("[enter] New line  [ctrl+s] Send  [ctrl+o] Attach file  [esc] Cancel")
 	}

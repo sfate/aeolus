@@ -1,6 +1,16 @@
-# Local workflow backend
+# Local command workflows
 
-This backend slice of [#11](https://github.com/sfate/aeolus/issues/11) stores named command templates and renders parameters without executing commands. The dependent TUI slice will provide saving, selection, parameter entry, and insertion into an explicit shell session's composer for review. It must never send automatically.
+Local workflows store named command templates and render parameters for insertion into an explicit shell session's composer. The TUI flow is tracked in [#67](https://github.com/sfate/aeolus/issues/67), following backend [#57](https://github.com/sfate/aeolus/issues/57), as slices of [#11](https://github.com/sfate/aeolus/issues/11). Neither library operations nor parameter insertion execute a command; execution requires a separate Ctrl+S from the composer after review.
+
+## TUI flow
+
+Open an explicit shell session's composer with `i` and enter a template such as `rg {{pattern}} {{path}}`. Press Ctrl+W to open the workflow library, `s` to save the draft, type a unique name, and Enter to save. The draft remains unchanged. Escape returns from the list to the draft; a second Escape discards it. Open a fresh composer when reusing a saved template in an empty draft.
+
+Within the library, select with arrows or j/k and Enter. Parameterized templates open a value form. Enter advances to the next parameter and inserts the fully rendered command after the last parameter; Tab and Shift+Tab cycle values. Parameter-free templates insert immediately. Both cases insert at the draft cursor and return to the composer for review. Nothing sends automatically. Ctrl+S from the composer is the separate execution step.
+
+Escape from naming or parameter entry returns to the list without changing the draft. Escape from the list returns to the draft. Ctrl+R reloads the library and PageUp/PageDown scroll previews. Left/right, Home/End or Ctrl+A/Ctrl+E, Backspace/Delete, and Ctrl+U edit names and values. A pending load can be dismissed; a pending save blocks further edits until it returns. Read and save errors retain the draft and input. Other composer actions, including sending and attaching files, are blocked while the library is active.
+
+Values entered in the parameter form are temporary and are not written to the workflow library. Saving a draft stores its literal template text, so avoid including secrets in saved drafts. Insertions and saves revalidate the original pane, provider, and session kind. Cancelled or stale asynchronous replies cannot modify a reopened composer. Agent composers do not expose shell workflows.
 
 ## Template contract
 
