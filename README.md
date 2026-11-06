@@ -110,6 +110,7 @@ Aeolus reads `$XDG_CONFIG_HOME/aeolus/config.json`, or `~/.config/aeolus/config.
 {
   "version": 1,
   "refresh_interval": "3s",
+  "theme": "dark",
   "default_provider": "codex",
   "projects": [
     {"name": "Application", "directory": "/absolute/path/to/application", "provider": "claude"}
@@ -118,6 +119,10 @@ Aeolus reads `$XDG_CONFIG_HOME/aeolus/config.json`, or `~/.config/aeolus/config.
 ```
 
 Use `aeolus --config /path/to/config.json` to select another file. An explicitly selected file must exist. The version field is required and must be `1`; `refresh_interval` is optional and defaults to `2s`. Its allowed range is `100ms` through `1m`. Invalid files, duplicate or unknown fields, and unsupported versions produce an error before the TUI starts. Settings are read at startup. `default_provider` is optional and defaults to `claude`. It sets the initial agent when opening the launch form with `c`. Supported providers are `claude`, `codex`, and `gemini`. `projects` is an optional array of launch presets; each entry requires a unique, nonblank `name` (up to 80 characters), an absolute `directory`, and a supported `provider`. Names and paths cannot contain control characters. Relative paths and `~` are not expanded in configuration. Preset directories need not exist when loading settings; launch validates them. In the launch form, press `ctrl+p` to cycle project presets, then submit explicitly with Enter. Selecting a preset never starts an agent. Manual directory and provider edits remain available and mark the selection as Manual. Keybindings and saved dashboard preferences remain planned.
+
+## Themes
+
+Set the optional `theme` setting to `dark`, `light`, or `monochrome` and restart Aeolus. Missing theme settings retain the current dark palette. The light palette uses darker text and pale highlights for light terminal backgrounds. Dark and light themes preserve colors supplied by captured session output. Monochrome removes ANSI styling from the entire dashboard display, including captured output, while retaining status text, icons, selection markers, and borders. It does not change the underlying session output or sent text. Unsupported names, nulls, and non-string values are configuration errors.
 
 ## Prompt composer
 

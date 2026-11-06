@@ -17,6 +17,7 @@ type Config struct {
 	RefreshInterval time.Duration
 	Projects        []Project
 	DefaultProvider string
+	Theme           string
 }
 
 // Project is a named directory and agent preset used by the launch form.
@@ -25,7 +26,7 @@ type Project struct{ Name, Directory, Provider string }
 // Load reads an explicit file, or the default XDG configuration when path is empty.
 // A missing default file uses defaults; an explicit missing file is an error.
 func Load(path string) (Config, error) {
-	result := Config{RefreshInterval: DefaultRefreshInterval, DefaultProvider: "claude"}
+	result := Config{RefreshInterval: DefaultRefreshInterval, DefaultProvider: "claude", Theme: "dark"}
 	explicit := path != ""
 	if !explicit {
 		root := os.Getenv("XDG_CONFIG_HOME")
@@ -57,7 +58,7 @@ func Load(path string) (Config, error) {
 }
 
 func decode(r io.Reader) (Config, error) {
-	result := Config{RefreshInterval: DefaultRefreshInterval, DefaultProvider: "claude"}
+	result := Config{RefreshInterval: DefaultRefreshInterval, DefaultProvider: "claude", Theme: "dark"}
 	d := json.NewDecoder(r)
 	token, err := d.Token()
 	if err != nil {
@@ -82,6 +83,12 @@ func decode(r io.Reader) (Config, error) {
 			return result, err
 		}
 		switch key {
+		case "theme":
+			var value string
+			if err = json.Unmarshal(raw, &value); err != nil || (value != "dark" && value != "light" && value != "monochrome") {
+				return result, fmt.Errorf("theme must be dark, light, or monochrome")
+			}
+			result.Theme = value
 		case "version":
 			var version int
 			if string(raw) == "null" {
