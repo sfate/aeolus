@@ -11,6 +11,7 @@ import (
 
 	"github.com/sfate/aeolus/internal/config"
 	"github.com/sfate/aeolus/internal/monitor"
+	"github.com/sfate/aeolus/internal/shellblocks"
 	"github.com/sfate/aeolus/internal/tmux"
 )
 
@@ -157,6 +158,8 @@ type Model struct {
 	filters        sessionFilters
 	allSessions    []monitor.Session
 	review         gitReviewState
+	blocks         blockBrowser
+	blockRead      func(string) ([]shellblocks.Block, error)
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -227,6 +230,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.finishGitReview(msg)
 		return m, nil
 
+	case blocksLoadedMsg:
+		m.finishBlocksLoad(msg)
+		return m, nil
+
 	case lifecycleMsg:
 		return m.finishLifecycle(msg)
 
@@ -259,6 +266,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			selected := m.selectedPaneID()
 			m.allSessions = append([]monitor.Session{}, msg.sessions...)
 			m.rebuildFilteredSessions(selected)
+			if m.blocks.active && !m.captureAvailable(m.blocks.paneID, m.blocks.captureID) {
+				m.blocks = blockBrowser{}
+			}
 			m.lastRefresh = time.Now()
 			// Clamp cursor
 			if m.cursor >= len(m.sessions) && len(m.sessions) > 0 {
@@ -298,6 +308,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if handled, cmd := m.blockBrowserKey(msg); handled {
+			return m, cmd
+		}
 		if m.confirmKill != "" {
 			switch msg.String() {
 			case "y":
@@ -420,6 +433,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "r":
 			return m, m.doRefresh()
+		case "B":
+			if m.cursor < len(m.sessions) && m.sessions[m.cursor].Pane.CaptureID != "" {
+				return m, m.openBlockBrowser()
+			}
 		case "q", "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
@@ -486,6 +503,11 @@ func contentPaneHeight(total int) int {
 // - permission sessions: top (so the parsed summary is immediately visible)
 // - others: bottom (so the most recent terminal output is visible)
 func (m *Model) updateViewport() {
+	if m.blocks.active {
+		m.viewport.SetContent(m.blocksView())
+		m.viewport.GotoTop()
+		return
+	}
 	if m.composer.active {
 		m.updateComposerViewport()
 		return
@@ -605,6 +627,9 @@ func (m *Model) contentPaneText() string {
 
 	if s.Status == monitor.StatusUnknown {
 		if s.Kind == monitor.SessionShell {
+			if shellblocks.IsValidCaptureID(s.Pane.CaptureID) {
+				return "Captured managed shell. Commands and terminal output are visible in the block browser; output may contain secrets.\n\n" + tailLines(s.Content, 50)
+			}
 			return "Managed shell. Command status is unavailable without explicit shell integration.\n\n" + tailLines(s.Content, 50)
 		}
 		return fmt.Sprintf("%s activity is unknown. Open the pane to inspect or respond.\n\n%s", s.Provider, tailLines(s.Content, 50))
@@ -639,6 +664,9 @@ func (m Model) View() string {
 
 	if m.review.active {
 		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.gitReviewView())
+	}
+	if m.blocks.active {
+		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.viewport.View())
 	}
 
 	if m.lifecycle.kind != lifecycleNone {
@@ -782,10 +810,17 @@ func (m Model) helpBar() string {
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
-	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [g] Git review  [f] Filter  [/] Search  [i] Compose  [q] Quit")
+	blocks := ""
+	if m.cursor < len(m.sessions) && shellblocks.IsValidCaptureID(m.sessions[m.cursor].Pane.CaptureID) {
+		blocks = "  [B] Command blocks"
+	}
+	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [g] Git review" + blocks + "  [f] Filter  [/] Search  [i] Compose  [q] Quit")
 }
 
 func (m Model) footer() string {
+	if m.blocks.active {
+		return styleHelp.Render("[↑↓/jk] Select  [r] Refresh  [esc] Close")
+	}
 	if m.composer.active {
 		if m.composer.context.active {
 			return styleHelp.Render("[enter] Attach for review  [esc] Back to draft")
