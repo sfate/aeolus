@@ -34,6 +34,11 @@ func (m Model) paletteActions() []paletteAction {
 			if s.Kind == monitor.SessionShell {
 				actions = append(actions, paletteAction{"Browse local notebooks", "notebooks"})
 				actions = append(actions, paletteAction{"Browse tmux layouts", "layouts"})
+				if s.Pane.Shell {
+					if _, ok := m.backend.(textSender); ok {
+						actions = append(actions, paletteAction{"Send command to shells", "shell-batch"})
+					}
+				}
 			}
 			actions = append(actions, paletteAction{"Switch to selected pane", "enter"}, paletteAction{"Search captured output", "/"}, paletteAction{"Kill pane (confirm first)", "x"})
 			if m.cursor > 0 {
@@ -120,6 +125,10 @@ func (m Model) updatePalette(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 				if action.key == "layouts" {
 					return m, m.openLayoutBrowser()
+				}
+				if action.key == "shell-batch" {
+					m.openShellBatch()
+					return m, nil
 				}
 				return m.Update(key)
 			}

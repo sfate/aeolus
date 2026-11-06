@@ -158,6 +158,10 @@ Select a workflow with arrows or j/k and Enter. Enter each parameter value, usin
 
 Placeholders must be standalone unquoted command words, such as `{{path}}`; quoted or concatenated placeholders are rejected. Values are shell-quoted as literals. Use Escape to return from parameter/name entry to the list, then Escape to return to the draft. Ctrl+R reloads and PageUp/PageDown scroll previews. Errors preserve input, duplicate names are rejected, and changed targets block insertion and saving. See [the workflow contract](docs/workflows.md) for storage and syntax limits. Workflows are available only in explicit shell composers.
 
+## Send a command to selected shells
+
+From a selected managed shell, open `ctrl+k` and choose Send command to shells. Select visible managed shell panes with Space; the current pane starts selected. Compose one command, review the exact text and every selected pane, session, window, and path, then press `y` to submit it. Press `n` to cancel or Escape to return to editing. Aeolus verifies every target against live tmux metadata before sending to any pane, then reports each pane's result. It does not retry or roll back sends. This is a one-shot command send; it does not enable ongoing synchronized input.
+
 ## Attach file context
 
 Within the composer, press `ctrl+o`, enter a local file path, and press `enter` to attach it. Relative paths resolve against the original target pane's reported directory; if that directory is unavailable, enter an absolute path. No shell expansion is performed, so use the full home directory path instead of `~`. Press `esc` to return to the draft without attaching.

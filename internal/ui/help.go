@@ -73,7 +73,7 @@ Dashboard
 [r] Refresh sessions  [g] Read-only Git review
 [f] Filter sessions  [/] Search captured output
 [i] Compose a prompt  [?] Open this help
-[ctrl+k] Command palette: dashboard actions and local library search
+[ctrl+k] Command palette: dashboard actions, libraries, and shell batches
 [q/ctrl+c] Quit from dashboard
 [pgup/pgdown/ctrl+b/ctrl+f] Scroll output by page
 [ctrl+u/ctrl+d] Scroll output by half page
@@ -86,6 +86,11 @@ Prompt composer
 [end/ctrl+e] End of line  [backspace/ctrl+h/delete] Delete text
 Attachment path: Enter reads, ctrl+u clears, Home/End move
 Draft edits and actions are blocked while sending
+
+Send command to shells
+[Space] Toggle visible managed shell  [Enter] Compose one command
+[ctrl+s] Review exact command and targets  Confirm with y
+[n] Cancel review  [esc] Return to editing  Each pane reports its own result
 
 Launch and rename forms
 [tab/shift+tab] Change launch provider
