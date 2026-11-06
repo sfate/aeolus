@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/sfate/aeolus/internal/config"
+	"github.com/sfate/aeolus/internal/history"
 	"github.com/sfate/aeolus/internal/monitor"
 	"github.com/sfate/aeolus/internal/preferences"
 	"github.com/sfate/aeolus/internal/tmux"
@@ -90,6 +91,12 @@ type Model struct {
 	search            outputSearch
 	lifecycle         lifecycleForm
 	composer          promptComposer
+	history           historyLibrary
+	historyRequest    uint64
+	historyLoad       func() ([]history.Entry, error)
+	historyWrite      func(history.Entry) (int, error)
+	historySaving     bool
+	historyNotice     string
 	contextRequest    uint64
 	filters           sessionFilters
 	allSessions       []monitor.Session
@@ -201,7 +208,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case worktreeCreatedMsg:
 		return m.finishWorktreeCreate(msg)
-
 	case worktreeLaunchedMsg:
 		return m.finishWorktreeLaunch(msg)
 	case preferencesSavedMsg:
@@ -212,7 +218,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.preferenceNotice = "Dashboard filters saved. Clear filters and press S to reset startup choices."
 		}
 		return m, nil
-
+	case historyLoadedMsg:
+		m.finishHistoryLoad(msg)
+		return m, nil
+	case historySavedMsg:
+		m.historySaving = false
+		if msg.err != nil {
+			m.historyNotice = fmt.Sprintf("Cannot save command: %v", msg.err)
+		} else {
+			m.historyNotice = fmt.Sprintf("Command saved to history; %d oldest entries evicted.", msg.evicted)
+		}
+		return m, nil
 	case gitReviewMsg:
 		m.finishGitReview(msg)
 		return m, nil
@@ -679,6 +695,9 @@ func (m Model) screenView() string {
 	header += "\n" + fitLine(m.theme.styleHelp.Render(m.filterSummary()), m.width)
 	if m.preferenceNotice != "" {
 		header += "\n" + fitLine(safeReviewText(m.preferenceNotice), m.width)
+	}
+	if m.historyNotice != "" {
+		header += "\n" + fitLine(safeReviewText(m.historyNotice), m.width)
 	}
 
 	if m.worktree.active {

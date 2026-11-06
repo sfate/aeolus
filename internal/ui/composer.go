@@ -47,10 +47,17 @@ func (m *Model) composerKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 		handled, cmd := m.libraryKey(msg)
 		return handled, cmd
 	}
+	if m.history.active {
+		handled, cmd := m.historyKey(msg)
+		return handled, cmd
+	}
 	if handled, cmd := m.contextKey(msg); handled {
 		return true, cmd
 	}
 	if handled, cmd := m.libraryKey(msg); handled {
+		return true, cmd
+	}
+	if handled, cmd := m.historyKey(msg); handled {
 		return true, cmd
 	}
 	c := &m.composer
@@ -156,6 +163,11 @@ func lineEnd(r []rune, p int) int {
 func (m *Model) updateComposerViewport() {
 	if m.composer.library.active {
 		m.viewport.SetContent(m.libraryView())
+		m.viewport.GotoTop()
+		return
+	}
+	if m.history.active {
+		m.viewport.SetContent(m.historyView())
 		m.viewport.GotoTop()
 		return
 	}
