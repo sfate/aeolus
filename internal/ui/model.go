@@ -13,6 +13,7 @@ import (
 	"github.com/sfate/aeolus/internal/config"
 	"github.com/sfate/aeolus/internal/monitor"
 	"github.com/sfate/aeolus/internal/preferences"
+	"github.com/sfate/aeolus/internal/shellblocks"
 	"github.com/sfate/aeolus/internal/tmux"
 )
 
@@ -106,6 +107,8 @@ type Model struct {
 	attention         map[string]sessionAttention
 	workflowRequest   uint64
 	workflowIO        workflowOperations
+	blocks            blockBrowser
+	blockRead         func(string) ([]shellblocks.Block, error)
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -219,6 +222,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.finishGitReview(msg)
 		return m, nil
 
+	case blocksLoadedMsg:
+		m.finishBlocksLoad(msg)
+		return m, nil
+
 	case lifecycleMsg:
 		return m.finishLifecycle(msg)
 
@@ -264,6 +271,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.observeAttention(msg.sessions)
 			m.allSessions = append([]monitor.Session{}, msg.sessions...)
 			m.rebuildFilteredSessions(selected)
+			if m.blocks.active && !m.captureAvailable(m.blocks.paneID, m.blocks.captureID) {
+				m.blocks = blockBrowser{}
+			}
 			m.lastRefresh = time.Now()
 			// Clamp cursor
 			if m.cursor >= len(m.sessions) && len(m.sessions) > 0 {
@@ -334,6 +344,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.KeyMsg:
+		if handled, cmd := m.blockBrowserKey(msg); handled {
+			return m, cmd
+		}
 		if !m.worktree.active && !m.lifecycle.busy && (m.palette.active || (msg.String() == "ctrl+k" && !m.help.active && m.helpAvailable())) {
 			return m.updatePalette(msg)
 		}
@@ -439,8 +452,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateViewport()
 			}
 		case "r":
-			cmd := m.doRefresh()
-			return m, cmd
+			return m, m.doRefresh()
+		case "B":
+			if m.cursor < len(m.sessions) && m.sessions[m.cursor].Pane.CaptureID != "" {
+				return m, m.openBlockBrowser()
+			}
 		case "q", "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
@@ -500,6 +516,11 @@ func (m *Model) updateViewport() {
 		m.resizeHelp()
 	}
 	m.resizeViewport()
+	if m.blocks.active {
+		m.viewport.SetContent(m.blocksView())
+		m.viewport.GotoTop()
+		return
+	}
 	if m.composer.active {
 		m.updateComposerViewport()
 		return
@@ -633,6 +654,9 @@ func (m *Model) sessionContentPaneText() string {
 
 	if s.Status == monitor.StatusUnknown {
 		if s.Kind == monitor.SessionShell {
+			if shellblocks.IsValidCaptureID(s.Pane.CaptureID) {
+				return "Captured managed shell. Commands and terminal output are visible in the block browser; output may contain secrets.\n\n" + tailLines(s.Content, 50)
+			}
 			return "Managed shell. Command status is unavailable without explicit shell integration.\n\n" + tailLines(s.Content, 50)
 		}
 		return fmt.Sprintf("%s activity is unknown. Open the pane to inspect or respond.\n\n%s", s.Provider, tailLines(s.Content, 50))
@@ -692,6 +716,9 @@ func (m Model) screenView() string {
 	}
 	if m.review.active {
 		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.gitReviewView())
+	}
+	if m.blocks.active {
+		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.viewport.View())
 	}
 
 	if m.lifecycle.kind != lifecycleNone {
@@ -843,10 +870,17 @@ func (m Model) helpBar() string {
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses += "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
-	return m.theme.styleHelp.Render(m.shortcutHelp("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [S] Save filters  [g] Git review  [W] Worktree  [f] Filter  [/] Search  [i] Compose  [?] Help  [ctrl+k] Palette  [q] Quit"))
+	blocks := ""
+	if m.cursor < len(m.sessions) && shellblocks.IsValidCaptureID(m.sessions[m.cursor].Pane.CaptureID) {
+		blocks = "  [B] Command blocks"
+	}
+	return m.theme.styleHelp.Render(m.shortcutHelp("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [S] Save filters  [g] Git review" + blocks + "  [W] Worktree  [f] Filter  [/] Search  [i] Compose  [?] Help  [ctrl+k] Palette  [q] Quit"))
 }
 
 func (m Model) footer() string {
+	if m.blocks.active {
+		return m.theme.styleHelp.Render("[↑↓/jk] Select  [r] Refresh  [esc] Close")
+	}
 	if m.composer.active {
 		if m.composer.library.active {
 			if m.composer.library.naming {
