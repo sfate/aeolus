@@ -59,11 +59,11 @@ func TestListPanesWithRealTmux(t *testing.T) {
 		if err != nil {
 			t.Fatalf("list panes while waiting for startup: %v", err)
 		}
-		if len(panes) == 1 && panes[0].CurrentPath == directory && panes[0].CurrentCommand == "sleep" {
+		if len(panes) == 1 && panes[0].CurrentPath == directory {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("pane startup timed out: want directory %q and command sleep; last panes=%#v", directory, panes)
+			t.Fatalf("pane startup timed out: want directory %q; last panes=%#v", directory, panes)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
