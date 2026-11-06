@@ -140,6 +140,10 @@ Press `s` in the library to save the current draft under a name, then `enter` to
 
 The versioned JSON library lives at `$XDG_DATA_HOME/aeolus/prompts.json`, falling back to `~/.local/share/aeolus/prompts.json`. New directories use mode 0700 and library files use mode 0600. Writes use a lock, reload the current library, and replace it atomically. Busy libraries report an error rather than losing another instance's changes. Corrupt or unsupported files are never silently overwritten. The library allows up to 128 prompts, each with an 80-character name and 64 KiB of valid UTF-8 text; total JSON is limited to 1 MiB. Unknown or duplicate JSON fields, missing/null prompt arrays, duplicate names, and unsupported control characters are rejected. Provider integration configuration remains separate.
 
+## Local tmux layouts
+
+From a selected shell session, open `ctrl+k` and choose Browse tmux layouts. Type to search, press Enter to preview, or `N` to create a versioned JSON layout and `ctrl+s` to save it locally. This workflow stores and previews layouts without launching tmux windows or panes. See [the local layout format](docs/layouts.md) for schema and limits.
+
 ## Local notebooks
 
 From a selected shell session, press `ctrl+k` and choose Browse local notebooks. Type to fuzzy search, press Enter to open, or `N` to create a notebook. Write Markdown notes and put runnable commands in fenced `sh` blocks. Press `ctrl+s` to save the notebook locally; saving never runs a command.

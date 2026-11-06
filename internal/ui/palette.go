@@ -33,6 +33,7 @@ func (m Model) paletteActions() []paletteAction {
 			actions = append(actions, paletteAction{"Search local library", "local-search"})
 			if s.Kind == monitor.SessionShell {
 				actions = append(actions, paletteAction{"Browse local notebooks", "notebooks"})
+				actions = append(actions, paletteAction{"Browse tmux layouts", "layouts"})
 			}
 			actions = append(actions, paletteAction{"Switch to selected pane", "enter"}, paletteAction{"Search captured output", "/"}, paletteAction{"Kill pane (confirm first)", "x"})
 			if m.cursor > 0 {
@@ -116,6 +117,9 @@ func (m Model) updatePalette(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				if action.key == "notebooks" {
 					cmd := m.openNotebookBrowser()
 					return m, cmd
+				}
+				if action.key == "layouts" {
+					return m, m.openLayoutBrowser()
 				}
 				return m.Update(key)
 			}

@@ -118,6 +118,8 @@ type Model struct {
 	notebooks         notebookLibrary
 	notebookSeq       uint64
 	notebookIO        notebookOperations
+	layouts           layoutLibrary
+	layoutSeq         uint64
 	attention         map[string]sessionAttention
 	blocks            blockBrowser
 	blockRead         func(string) ([]shellblocks.Block, error)
@@ -256,6 +258,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case notebooksLoadedMsg:
 		m.finishNotebooksLoad(msg)
 		return m, nil
+	case layoutsLoadedMsg:
+		m.finishLayoutsLoad(msg)
+		return m, nil
+	case layoutSavedMsg:
+		m.finishLayoutSave(msg)
+		return m, nil
 	case notebookSavedMsg:
 		m.finishNotebookSave(msg)
 		return m, nil
@@ -384,6 +392,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if handled, cmd := m.layoutKey(msg); handled {
+			if m.quitting {
+				return m, tea.Quit
+			}
+			return m, cmd
+		}
 		if handled, cmd := m.notebookKey(msg); handled {
 			if m.quitting {
 				return m, tea.Quit
@@ -567,6 +581,11 @@ func contentPaneHeight(total int) int { return max(1, total-7) }
 func (m *Model) updateViewport() {
 	if m.help.active {
 		m.resizeHelp()
+	}
+	if m.layouts.active {
+		m.resizeNotebookViewport()
+		m.viewport.SetContent(m.layoutBody())
+		return
 	}
 	if m.notebooks.active {
 		m.resizeNotebookViewport()
@@ -766,6 +785,9 @@ func (m Model) view() string {
 	}
 	if m.notebooks.active {
 		return m.notebookView()
+	}
+	if m.layouts.active {
+		return m.layoutView()
 	}
 	if m.help.active {
 		return fitScreen(m.helpView(), m.width, m.height)

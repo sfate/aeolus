@@ -119,6 +119,11 @@ Git review
 [ctrl+b/ctrl+f] Page  [ctrl+u/ctrl+d] Half page
 [esc] Close  [ctrl+c] Quit
 
+Local tmux layouts
+Open with the command palette from a selected shell session
+[N] Create versioned JSON  [Enter] Preview  [type] Search
+[Ctrl+S] Save locally; layouts do not launch in this workflow
+
 Local notebooks
 Open with the command palette from a selected shell session
 [N] Create a notebook  [Enter] Open  [type] Fuzzy search
