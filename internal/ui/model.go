@@ -120,6 +120,7 @@ type Model struct {
 	notebookIO        notebookOperations
 	layouts           layoutLibrary
 	layoutSeq         uint64
+	layoutNotice      string
 	attention         map[string]sessionAttention
 	blocks            blockBrowser
 	blockRead         func(string) ([]shellblocks.Block, error)
@@ -264,6 +265,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case layoutSavedMsg:
 		m.finishLayoutSave(msg)
 		return m, nil
+	case layoutLaunchedMsg:
+		return m, m.finishLayoutLaunch(msg)
 	case notebookSavedMsg:
 		m.finishNotebookSave(msg)
 		return m, nil
@@ -809,6 +812,9 @@ func (m Model) screenView() string {
 	header += "\n" + fitLine(m.theme.styleHelp.Render(m.filterSummary()), m.width)
 	if m.preferenceNotice != "" {
 		header += "\n" + fitLine(safeReviewText(m.preferenceNotice), m.width)
+	}
+	if m.layoutNotice != "" {
+		header += "\n" + fitLine(safeReviewText(m.layoutNotice), m.width)
 	}
 	if m.historyNotice != "" {
 		header += "\n" + fitLine(safeReviewText(m.historyNotice), m.width)

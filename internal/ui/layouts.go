@@ -2,17 +2,23 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
+	"reflect"
 	"strings"
+	"time"
 	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	store "github.com/sfate/aeolus/internal/layouts"
+	"github.com/sfate/aeolus/internal/monitor"
+	"github.com/sfate/aeolus/internal/tmux"
 )
 
 type layoutLibrary struct {
 	active, loading, creating, saving, viewing bool
-	request                                    uint64
+	confirmRun, launching                      bool
+	request, launchRequest                     uint64
 	layouts                                    []store.Layout
 	query, source, err                         string
 	selected, position, preview                int
@@ -25,6 +31,13 @@ type layoutsLoadedMsg struct {
 type layoutSavedMsg struct {
 	request uint64
 	layout  store.Layout
+	err     error
+}
+
+type layoutLaunchedMsg struct {
+	request uint64
+	layout  store.Layout
+	result  tmux.LayoutResult
 	err     error
 }
 
@@ -96,19 +109,36 @@ func (m *Model) layoutKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 	}
 	l := &m.layouts
 	if msg.String() == "ctrl+c" {
+		if l.launching {
+			return true, nil
+		}
 		m.quitting = true
 		return true, tea.Quit
 	}
-	if l.loading || l.saving {
-		if msg.String() == "esc" && !l.saving {
+	if l.loading || l.saving || l.launching {
+		if msg.String() == "esc" && l.loading {
 			*l = layoutLibrary{}
 			m.updateViewport()
 		}
 		return true, nil
 	}
 	if l.viewing {
-		if msg.String() == "esc" {
-			l.viewing = false
+		if l.confirmRun {
+			switch msg.String() {
+			case "esc", "n":
+				l.confirmRun = false
+				l.err = "Launch cancelled."
+			case "y":
+				return true, m.launchLayout()
+			}
+		} else {
+			switch msg.String() {
+			case "esc":
+				l.viewing = false
+			case "l":
+				l.confirmRun = true
+				l.err = ""
+			}
 		}
 		m.updateViewport()
 		return true, nil
@@ -277,6 +307,149 @@ func (m *Model) finishLayoutSave(msg layoutSavedMsg) {
 	}
 	m.updateViewport()
 }
+func (m *Model) launchLayout() tea.Cmd {
+	l := &m.layouts
+	if l.preview < 0 || l.preview >= len(l.layouts) {
+		l.confirmRun = false
+		l.err = "Selected layout is unavailable."
+		return nil
+	}
+	creator, ok := m.backend.(tmux.LayoutLifecycle)
+	if !ok {
+		l.confirmRun = false
+		l.err = "This transport cannot create tmux layouts."
+		return nil
+	}
+	selected := l.layouts[l.preview]
+	l.confirmRun = false
+	l.launching = true
+	l.launchRequest++
+	request := l.launchRequest
+	m.updateViewport()
+	return func() tea.Msg {
+		path, err := store.DefaultPath()
+		var saved []store.Layout
+		if err == nil {
+			saved, err = store.Load(path)
+		}
+		if err == nil {
+			found := false
+			for _, item := range saved {
+				if item.Name == selected.Name {
+					found = true
+					if !reflect.DeepEqual(item, selected) {
+						err = fmt.Errorf("saved layout changed after preview; reopen it before launching")
+					}
+					break
+				}
+			}
+			if !found {
+				err = fmt.Errorf("saved layout was removed after preview; reopen the layout browser")
+			}
+		}
+		result := tmux.LayoutResult{}
+		if err == nil {
+			result, err = creator.CreateLayout(selected)
+			if err != nil && (result.SessionName != "" || result.SessionID != "") {
+				if panes, listErr := m.backend.ListAllPanes(); listErr == nil {
+					result.Panes = reconcileLayoutPanes(result, panes)
+				}
+			}
+		}
+		return layoutLaunchedMsg{request: request, layout: selected, result: result, err: err}
+	}
+}
+
+func reconcileLayoutPanes(result tmux.LayoutResult, listed []tmux.Pane) []tmux.Pane {
+	panes := append([]tmux.Pane(nil), result.Panes...)
+	seen := make(map[string]bool, len(panes))
+	for _, pane := range panes {
+		seen[pane.PaneID] = true
+	}
+	for _, pane := range listed {
+		inSession := result.SessionID != "" && pane.SessionID == result.SessionID || result.SessionName != "" && pane.SessionName == result.SessionName
+		if inSession && !seen[pane.PaneID] {
+			panes = append(panes, pane)
+			seen[pane.PaneID] = true
+		}
+	}
+	return panes
+}
+
+func (m *Model) finishLayoutLaunch(msg layoutLaunchedMsg) tea.Cmd {
+	l := &m.layouts
+	if !l.active || !l.viewing || !l.launching || l.launchRequest != msg.request {
+		return nil
+	}
+	l.launching = false
+	if len(msg.result.Panes) == 0 {
+		l.err = errorString(msg.err)
+		m.updateViewport()
+		return nil
+	}
+	m.syncFilterSource()
+	added := make([]monitor.Session, 0, len(msg.result.Panes))
+	for _, pane := range msg.result.Panes {
+		session := monitor.Session{Pane: pane, Status: monitor.StatusUnknown, UpdatedAt: time.Now()}
+		if pane.Shell {
+			session.Kind = monitor.SessionShell
+		} else {
+			session.Provider = monitor.Provider(filepath.Base(pane.CurrentCommand))
+		}
+		added = append(added, session)
+	}
+	for _, session := range added {
+		found := false
+		for i := range m.allSessions {
+			if m.allSessions[i].Pane.PaneID == session.Pane.PaneID {
+				m.allSessions[i] = session
+				found = true
+				break
+			}
+		}
+		if !found {
+			m.allSessions = append(m.allSessions, session)
+		}
+	}
+	m.filters.applied = filterChoice{}
+	m.rebuildFilteredSessions(added[0].Pane.PaneID)
+	m.layouts = layoutLibrary{}
+	m.updateViewport()
+	m.layoutNotice = layoutLaunchNotice(msg.layout, msg.result, msg.err)
+	m.err = nil
+	m.tmuxMissing = false
+	m.refreshObsolete = m.refreshing
+	return m.doRefresh()
+}
+
+func errorString(err error) string {
+	if err == nil {
+		return "Layout launch returned no panes."
+	}
+	return err.Error()
+}
+
+func layoutLaunchNotice(layout store.Layout, result tmux.LayoutResult, launchErr error) string {
+	var b strings.Builder
+	status := "created"
+	if launchErr != nil {
+		status = "partially created"
+	}
+	fmt.Fprintf(&b, "Layout %q %s: ", layout.Name, status)
+	for i, pane := range result.Panes {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		fmt.Fprintf(&b, "%s/%s (%s)", pane.WindowName, pane.PaneID, pane.SessionName)
+	}
+	if launchErr != nil {
+		fmt.Fprintf(&b, ". Failed: %s", launchErr.Error())
+	} else {
+		b.WriteString(". First pane selected.")
+	}
+	return b.String()
+}
+
 func (m Model) layoutBody() string {
 	l := m.layouts
 	if l.loading {
@@ -303,7 +476,16 @@ func (m Model) layoutBody() string {
 			}
 			b.WriteByte('\n')
 		}
-		b.WriteString("Preview only. This layout is not launched.")
+		if l.err != "" {
+			b.WriteString("\n\n" + safeReviewText(l.err))
+		}
+		if l.launching {
+			b.WriteString("\n\nCreating layout. Keep Aeolus open until pane results are reported.")
+		} else if l.confirmRun {
+			b.WriteString("\n\nCONFIRM LAYOUT CREATION\nThis creates a detached tmux session and launches the configured agents and shells.\n\nPress y to create it, or n/Esc to cancel.")
+		} else {
+			b.WriteString("\n\nPress l to launch this layout. A confirmation is required before tmux changes.")
+		}
 		return b.String()
 	}
 	if l.creating {
@@ -350,8 +532,14 @@ func (m Model) tmuxLayoutFooter() string {
 	if m.layouts.saving {
 		return "Saving layout..."
 	}
+	if m.layouts.launching {
+		return "Creating layout..."
+	}
+	if m.layouts.viewing && m.layouts.confirmRun {
+		return "[y] Create layout  [n/Esc] Cancel"
+	}
 	if m.layouts.viewing {
-		return "[esc] Back to layouts"
+		return "[l] Launch layout  [esc] Back to layouts"
 	}
 	if m.layouts.creating {
 		return "[ctrl+s] Save locally  [esc] Back  [arrows] Edit JSON  [enter] New line"

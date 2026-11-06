@@ -142,7 +142,7 @@ The versioned JSON library lives at `$XDG_DATA_HOME/aeolus/prompts.json`, fallin
 
 ## Local tmux layouts
 
-From a selected shell session, open `ctrl+k` and choose Browse tmux layouts. Type to search, press Enter to preview, or `N` to create a versioned JSON layout and `ctrl+s` to save it locally. This workflow stores and previews layouts without launching tmux windows or panes. See [the local layout format](docs/layouts.md) for schema and limits.
+From a selected shell session, open `ctrl+k` and choose Browse tmux layouts. Type to search, press Enter to preview, or `N` to create a versioned JSON layout and `ctrl+s` to save it locally. Press `l` in a preview and then `y` to confirm creation. Aeolus adds every created pane to the dashboard and reports partial failures without removing panes. See [the local layout format](docs/layouts.md) for schema and limits.
 
 ## Local notebooks
 
