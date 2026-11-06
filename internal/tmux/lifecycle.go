@@ -72,6 +72,10 @@ func (Client) CreateShellSession(directory string) (Pane, error) {
 }
 
 func createSession(directory, command string, shell bool, providerArgs []string) (Pane, error) {
+	return createSessionWithCapture(directory, command, shell, providerArgs, "", nil)
+}
+
+func createSessionWithCapture(directory, command string, shell bool, providerArgs []string, captureDirectory string, beforeLaunch func()) (Pane, error) {
 	directory, err := filepath.Abs(directory)
 	if err != nil {
 		return Pane{}, fmt.Errorf("resolve project directory: %w", err)
@@ -105,7 +109,11 @@ func createSession(directory, command string, shell bool, providerArgs []string)
 	}
 	name := fmt.Sprintf("aeolus-%s-%x", command, nonce)
 	format := "#{pane_id}\t#{session_id}\t#{session_name}\t#{window_index}"
-	args := []string{"new-session", "-d", "-P", "-F", format, "-s", name, "-n", command, "-c", literalFormatArgument(directory), "--", env, executable}
+	args := []string{"new-session", "-d", "-P", "-F", format, "-s", name, "-n", command, "-c", literalFormatArgument(directory)}
+	if captureDirectory != "" {
+		args = append(args, "-e", literalFormatArgument("ZDOTDIR="+captureDirectory))
+	}
+	args = append(args, "--", env, executable)
 	if shell {
 		args = append(args, "-i")
 	}
@@ -119,6 +127,9 @@ func createSession(directory, command string, shell bool, providerArgs []string)
 			arg = arg[:len(arg)-1] + `\;`
 		}
 		args = append(args, arg)
+	}
+	if beforeLaunch != nil {
+		beforeLaunch()
 	}
 	out, err := lifecycleOutput(args...)
 	if err != nil {
