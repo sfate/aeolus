@@ -97,6 +97,8 @@ type Model struct {
 	historyWrite      func(history.Entry) (int, error)
 	historySaving     bool
 	historyNotice     string
+	workflowRequest   uint64
+	workflowIO        workflowOperations
 	contextRequest    uint64
 	filters           sessionFilters
 	allSessions       []monitor.Session
@@ -342,6 +344,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.review.viewport, cmd = m.review.viewport.Update(msg)
 			return m, cmd
 		}
+	case workflowResultMsg:
+		m.workflowResult(msg)
+		return m, nil
 
 	case tea.KeyMsg:
 		if m.palette.active || (msg.String() == "ctrl+k" && !m.help.active && m.helpAvailable()) {
@@ -867,8 +872,14 @@ func (m Model) footer() string {
 			}
 			return m.theme.styleHelp.Render("[j/k] Select  [enter] Insert  [s] Save draft  [ctrl+r] Reload  [pgup/pgdown] Preview  [esc] Back")
 		}
+		if m.composer.workflows.active {
+			return m.theme.styleHelp.Render(m.workflowFooter())
+		}
 		if m.composer.context.active {
 			return m.theme.styleHelp.Render("[enter] Attach for review  [esc] Back to draft")
+		}
+		if m.composer.kind == monitor.SessionShell {
+			return m.theme.styleHelp.Render("[enter] New line  [ctrl+s] Execute  [ctrl+w] Workflows  [ctrl+o] Attach file  [esc] Cancel")
 		}
 		return m.theme.styleHelp.Render("[enter] New line  [ctrl+s] Send  [ctrl+o] Attach file  [ctrl+p] Prompts  [esc] Cancel")
 	}
