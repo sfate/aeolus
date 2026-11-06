@@ -660,7 +660,7 @@ func (m Model) screenView() string {
 		)
 	}
 	header := fitLine(lipgloss.JoinHorizontal(lipgloss.Top, title, ts), m.width)
-	header += "\n" + fitLine(styleHelp.Render(m.filterSummary()), m.width)
+	header += "\n" + fitLine(m.theme.styleHelp.Render(m.filterSummary()), m.width)
 	if m.preferenceNotice != "" {
 		header += "\n" + fitLine(safeReviewText(m.preferenceNotice), m.width)
 	}
