@@ -27,6 +27,7 @@ type lifecycleForm struct {
 	provider int
 	preset   int
 	shell    bool
+	capture  bool
 	paneID   string
 	busy     bool
 	err      error
@@ -91,9 +92,16 @@ func (m *Model) lifecycleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 			choice = (choice + step + len(launchProviders) + 1) % (len(launchProviders) + 1)
 			form.shell = choice == len(launchProviders)
 			if !form.shell {
+				form.capture = false
+			}
+			if !form.shell {
 				form.provider = choice
 			}
 			form.preset = -1
+		}
+	case "ctrl+b":
+		if form.kind == lifecycleLaunch && form.shell {
+			form.capture = !form.capture
 		}
 	case "enter":
 		transport, ok := m.backend.(tmux.Lifecycle)
@@ -129,14 +137,24 @@ func (m *Model) lifecycleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 		}
 		kind, paneID, provider := form.kind, form.paneID, launchProviders[form.provider]
 		shell := form.shell && kind == lifecycleLaunch
+		capture := form.capture && shell
 		shellTransport, shellSupported := m.backend.(tmux.ShellLifecycle)
 		if shell && !shellSupported {
 			form.err = fmt.Errorf("shell sessions are not supported by this backend")
 			return true, nil
 		}
+		capturedTransport, captureSupported := m.backend.(tmux.CapturedShellLifecycle)
+		if capture && !captureSupported {
+			form.err = fmt.Errorf("captured shell sessions are not supported by this backend")
+			return true, nil
+		}
 		form.busy = true
 		form.err = nil
 		return true, func() tea.Msg {
+			if capture {
+				pane, err := capturedTransport.CreateCapturedShellSession(text)
+				return lifecycleMsg{pane: pane, shell: true, err: err}
+			}
 			if shell {
 				pane, err := shellTransport.CreateShellSession(text)
 				return lifecycleMsg{pane: pane, shell: true, err: err}
@@ -241,9 +259,17 @@ func (m Model) lifecycleView() string {
 		choice := launchProviders[form.provider].String()
 		if form.shell {
 			choice = "Shell (zsh)"
+			capture := "off"
+			if form.capture {
+				capture = "on"
+			}
+			choice += "  Capture: " + capture
 		}
 		details = fmt.Sprintf("Session: %s  [tab/shift+tab] Change\nDirectory: %s\n\nCreates a dedicated detached tmux session.", choice, input)
 		details += "\nPreset: " + m.projectPresetLabel() + "  [ctrl+p] Next configured project"
+		if form.shell {
+			details += "\n[ctrl+b] Capture records commands and output; it may contain secrets. [ctrl+b] Toggle."
+		}
 	}
 	status := "[enter] Submit  [esc] Cancel"
 	if m.width < 40 {
