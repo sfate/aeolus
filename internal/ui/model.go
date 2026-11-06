@@ -532,7 +532,6 @@ func (m *Model) updateViewport() {
 		m.resizeHelp()
 	}
 	if m.blocks.active {
-		m.resizeViewport()
 		m.viewport.SetContent(m.blocksView())
 		m.viewport.GotoTop()
 		return

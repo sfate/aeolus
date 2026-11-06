@@ -95,6 +95,7 @@ func (b *capturedLifecycleFake) CreateCapturedShellSession(directory string) (tm
 func TestCaptureMustBeExplicitAndRequiresSupportedBackend(t *testing.T) {
 	b := &capturedLifecycleFake{}
 	m := NewModelWithBackend(b, &fakeMonitor{})
+	m.width, m.height = 80, 24
 	m = key(m, t, "c")
 	for i := 0; i < len(launchProviders); i++ {
 		m = key(m, t, "tab")

@@ -268,7 +268,7 @@ func (m Model) lifecycleView() string {
 		details = fmt.Sprintf("Session: %s  [tab/shift+tab] Change\nDirectory: %s\n\nCreates a dedicated detached tmux session.", choice, input)
 		details += "\nPreset: " + m.projectPresetLabel() + "  [ctrl+p] Next configured project"
 		if form.shell {
-			details += "\n[ctrl+b] Toggle bounded command capture. Captured commands and output can contain secrets."
+			details += "\n[ctrl+b] Capture records commands and output; it may contain secrets. [ctrl+b] Toggle."
 		}
 	}
 	status := "[enter] Submit  [esc] Cancel"
