@@ -204,9 +204,7 @@ func (m *Model) editProjectFilter(msg tea.KeyMsg) {
 func (m Model) filterModalText() string {
 	text := "Filter sessions\n\n" + m.filters.draft.description() + "\n\n[tab] Toggle controls / working-directory text\n"
 	if m.filters.projectEditing {
-		r := []rune(m.filters.draft.directory)
-		p := m.filters.projectCursor
-		return text + "Editing working-directory substring: " + string(r[:p]) + "▏" + string(r[p:]) + "\n[ctrl+u] Clear text  [enter] Apply  [esc] Cancel"
+		return text + "Directory: " + focusInput(m.filters.draft.directory, m.filters.projectCursor, max(1, m.viewport.Width-11)) + "\n[ctrl+u] Clear text  [enter] Apply  [esc] Cancel"
 	}
 	return text + "[p] Cycle provider  [s] Cycle status\n[c] Clear all  [enter] Apply  [esc] Cancel"
 }

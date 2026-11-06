@@ -177,8 +177,7 @@ func (m *Model) contextLoaded(msg contextLoadedMsg) {
 }
 func (m Model) contextView() string {
 	a := m.composer.context
-	r := []rune(a.path)
-	view := fmt.Sprintf("Attach text file to pane %s (64 KiB maximum)\nPath: %s▏%s\n", m.composer.paneID, string(r[:a.position]), string(r[a.position:]))
+	view := fmt.Sprintf("Attach text file to pane %s (64 KiB maximum)\nPath: %s\n", m.composer.paneID, focusInput(a.path, a.position, max(1, m.viewport.Width-6)))
 	if a.pending {
 		view += "Reading...\n"
 	}
