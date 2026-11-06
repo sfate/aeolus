@@ -61,6 +61,48 @@ func TestProviderRefresh(t *testing.T) {
 	}
 }
 
+func TestCodexWorkingStatusUsesOnlyNativeIndicator(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		want    Status
+	}{
+		{name: "seconds", content: "• Working (5s • esc to interrupt)", want: StatusWorking},
+		{name: "minutes", content: "• Working (1m 05s • esc to interrupt)", want: StatusWorking},
+		{name: "hours", content: "• Working (1h 02m 03s • esc to interrupt)", want: StatusWorking},
+		{name: "ansi styling", content: "\x1b[35m•\x1b[0m Working (5s • esc to interrupt)", want: StatusWorking},
+		{name: "no status line", content: "working on the request", want: StatusUnknown},
+		{name: "other codex header", content: "Planning (5s • esc to interrupt)", want: StatusUnknown},
+		{name: "missing interrupt hint", content: "Working (5s)", want: StatusUnknown},
+		{name: "stale indicator outside visible tail", content: "• Working (5s • esc to interrupt)\nold\nold\nold\nold\nold\nold\nold\nready", want: StatusUnknown},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			status, request, question := detectProviderStatus(ProviderCodex, tt.content)
+			if status != tt.want || request != nil || question != nil {
+				t.Fatalf("got status=%v request=%#v question=%#v; want %v with no actions", status, request, question, tt.want)
+			}
+			if (Session{Provider: ProviderCodex, Status: status}).CanRespond() {
+				t.Fatal("Codex status must not expose Claude response actions")
+			}
+		})
+	}
+}
+
+func TestProviderRefreshDetectsCodexWorkingWithoutResponseActions(t *testing.T) {
+	content := "• Working (12s • esc to interrupt)"
+	m := New(fakePaneSource{content: map[string]string{"%1": content}})
+	m.processes = func() ([]processInfo, error) { return nil, nil }
+
+	got := m.Refresh([]tmux.Pane{{PaneID: "%1", CurrentCommand: "codex"}})
+	if len(got) != 1 || got[0].Provider != ProviderCodex || got[0].Status != StatusWorking {
+		t.Fatalf("got %#v, want a working Codex session", got)
+	}
+	if got[0].CanRespond() || got[0].Request != nil || got[0].Question != nil {
+		t.Fatalf("Codex working state exposed unsupported response actions: %#v", got[0])
+	}
+}
+
 type brokenPaneSource struct{}
 
 func (brokenPaneSource) CapturePane(string, int) (string, error) {
