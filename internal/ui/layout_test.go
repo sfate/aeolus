@@ -30,7 +30,7 @@ func assertFits(t *testing.T, text string, width, height int) {
 
 func TestLayoutBoundsAcrossModes(t *testing.T) {
 	for _, size := range [][2]int{{1, 1}, {12, 5}, {24, 12}, {40, 20}, {79, 24}, {80, 24}, {120, 40}} {
-		for _, mode := range []string{"dashboard", "permission", "question", "empty", "error", "missing", "launch", "rename", "composer", "attach", "filters", "review", "search"} {
+		for _, mode := range []string{"dashboard", "permission", "question", "empty", "error", "missing", "launch", "rename", "composer", "attach", "filters", "review", "search", "local-search"} {
 			t.Run(fmt.Sprintf("%s/%dx%d", mode, size[0], size[1]), func(t *testing.T) {
 				m := NewModel()
 				s := testSession("%1")
@@ -73,6 +73,8 @@ func TestLayoutBoundsAcrossModes(t *testing.T) {
 					m.review.viewport.SetContent(strings.Repeat("diff\n", 100))
 				case "search":
 					m.search = outputSearch{editing: true, paneID: "%1", query: strings.Repeat("界", 80), position: 80}
+				case "local-search":
+					m.localSearch = localSearchState{active: true, query: strings.Repeat("界", 80), results: []localSearchResult{{kind: localPrompt, name: "Unicode", preview: strings.Repeat("界", 80)}}}
 				}
 				m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 				assertFits(t, m.View(), size[0], size[1])

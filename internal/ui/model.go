@@ -113,6 +113,8 @@ type Model struct {
 	responseID        uint64
 	worktree          worktreeForm
 	palette           commandPalette
+	localSearch       localSearchState
+	localSeq          uint64
 	attention         map[string]sessionAttention
 	blocks            blockBrowser
 	blockRead         func(string) ([]shellblocks.Block, error)
@@ -332,6 +334,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.libraryResult(msg)
 		return m, nil
 
+	case localSearchLoadedMsg:
+		m.localSearchLoaded(msg)
+		return m, nil
+
 	case contextLoadedMsg:
 		m.contextLoaded(msg)
 		return m, nil
@@ -359,6 +365,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if handled, cmd := m.localSearchKey(msg); handled {
+			if m.quitting {
+				return m, tea.Quit
+			}
+			return m, cmd
+		}
 		if m.palette.active || (msg.String() == "ctrl+k" && !m.help.active && m.helpAvailable()) {
 			return m.updatePalette(msg)
 		}
@@ -705,6 +717,9 @@ func (m Model) view() string {
 	}
 	if m.palette.active {
 		return fitScreen(m.paletteView(), m.width, m.height)
+	}
+	if m.localSearch.active {
+		return fitScreen(m.localSearchView(), m.width, m.height)
 	}
 	if m.help.active {
 		return fitScreen(m.helpView(), m.width, m.height)

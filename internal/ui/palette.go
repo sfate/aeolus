@@ -28,6 +28,7 @@ func (m Model) paletteActions() []paletteAction {
 		actions = append(actions, paletteAction{"Launch agent", "c"})
 	}
 	if m.cursor >= 0 && m.cursor < len(m.sessions) {
+		actions = append(actions, paletteAction{"Search local library", "local-search"})
 		s := m.sessions[m.cursor]
 		if s.Pane.PaneID == m.palette.paneID && s.Provider == m.palette.provider {
 			actions = append(actions, paletteAction{"Switch to selected pane", "enter"}, paletteAction{"Search captured output", "/"}, paletteAction{"Kill pane (confirm first)", "x"})
@@ -104,6 +105,10 @@ func (m Model) updatePalette(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 				if action.key == "esc" {
 					key = tea.KeyMsg{Type: tea.KeyEsc}
+				}
+				if action.key == "local-search" {
+					cmd := m.openLocalSearch()
+					return m, cmd
 				}
 				return m.Update(key)
 			}

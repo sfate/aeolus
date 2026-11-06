@@ -73,7 +73,7 @@ Dashboard
 [r] Refresh sessions  [g] Read-only Git review
 [f] Filter sessions  [/] Search captured output
 [i] Compose a prompt  [?] Open this help
-[ctrl+k] Search dashboard actions in the command palette
+[ctrl+k] Command palette: dashboard actions and local library search
 [q/ctrl+c] Quit from dashboard
 [pgup/pgdown/ctrl+b/ctrl+f] Scroll output by page
 [ctrl+u/ctrl+d] Scroll output by half page
