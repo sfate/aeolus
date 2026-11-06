@@ -45,7 +45,7 @@ func unknownStatus(string) (Status, *PermissionRequest, *QuestionRequest) {
 
 var providerAdapters = []providerAdapter{
 	{ProviderClaude, []string{"claude", "claude-code"}, []string{"/@anthropic-ai/claude-code/cli.js"}, detectClaudeStatus},
-	{ProviderCodex, []string{"codex"}, []string{"/@openai/codex/bin/codex.js"}, unknownStatus},
+	{ProviderCodex, []string{"codex"}, []string{"/@openai/codex/bin/codex.js"}, detectCodexStatus},
 	{ProviderGemini, []string{"gemini"}, []string{"/@google/gemini-cli/dist/index.js"}, unknownStatus},
 }
 
