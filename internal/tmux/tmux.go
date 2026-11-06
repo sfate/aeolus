@@ -20,6 +20,7 @@ type Pane struct {
 	Height         int
 	WindowName     string
 	Shell          bool
+	CaptureID      string
 }
 
 // ListAllPanes returns all tmux panes across all sessions.

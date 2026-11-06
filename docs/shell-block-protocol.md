@@ -1,6 +1,6 @@
 # Explicit shell command blocks
 
-The `internal/shellblocks` package is the protocol engine for issue #58, a child of #10. It does not enable shell recording, write files, install startup hooks, or execute commands by itself. The TUI capture flow and runtime collector are separate work.
+The `internal/shellblocks` package provides the protocol engine for issue #58 and the opt-in runtime backend for issue #68, both children of #10. The parser and hook generator have no side effects. The runtime backend starts recording only when its captured-shell launch API is explicitly called; ordinary managed shell launches remain unchanged. TUI opt-in controls and block browsing are separate work.
 
 ## Stream contract
 
@@ -18,6 +18,16 @@ Start and finish wall times come from the explicit hook records. Duration uses t
 
 ## Privacy and future integration
 
-The engine has no filesystem persistence. A future capture flow must require explicit TUI opt-in, explain that command text and terminal output can contain secrets, use bounded private runtime storage, and clean up its capture lifecycle. Persistent history must require an explicit user save, rather than automatically retaining captured commands or output.
+The parser has no filesystem persistence. Capture initiation must require explicit TUI opt-in and explain that command text and terminal output can contain secrets. Persistent history must require an explicit user save, rather than automatically retaining captured commands or output.
+
+## Runtime backend
+
+`tmux.CapturedShellLifecycle.CreateCapturedShellSession` starts a new dedicated zsh only. It never attaches a recorder to an existing pane or replaces an existing output pipe. `Pane.CaptureID` is an opaque 32-character lowercase hexadecimal identifier. `shellblocks.ReadCapture` accepts this identifier, never an arbitrary path, and reads only the fixed snapshot in the matching private runtime directory under the process temporary directory.
+
+Capture directories use mode 0700; bootstrap files and snapshots use mode 0600. The hidden helper validates IDs, ownership and permissions, locks against duplicate collectors, and atomically publishes bounded snapshots at most four times per second. A snapshot is limited to 8 MiB including JSON encoding; block and output limits still apply. Reads reject symlink snapshots, nonregular files, unsupported schemas and oversized content. No persistent history is written. Raw bytes remain bounded data; a TUI consumer must sanitize them before display.
+
+The bootstrap sources the user's normal `.zshenv` and `.zshrc`, including a `ZDOTDIR` change made by `.zshenv`, and then installs the generated hooks. It does not edit the user's startup files. Launch verifies collector and bootstrap-hook readiness before reporting capture success. Capture requires an absolute `ZDOTDIR` when that variable is set. Global or user startup files that disable later startup processing or replace the shell with `exec` can prevent startup readiness and produce a setup error. Subsequent hook overrides can interrupt integration; an empty capture is not evidence that no commands ran.
+
+The collector removes its runtime directory when the pane output stream closes. Closing only the dashboard leaves the detached shell and its collector running. Killing the shell closes the stream and removes successful-capture runtime files. Process termination, a machine crash, or partial setup failure can retain a private runtime directory. If tmux might have started a child, setup errors deliberately retain bootstrap files and report the exact directory instead of removing a live shell's `ZDOTDIR`. Inspect and close that shell before manually removing the reported directory. No automatic cleanup removes a potentially live shell's bootstrap files.
 
 References: [zsh hook functions](https://zsh.sourceforge.io/Doc/Release/Functions.html#Hook-Functions), [tmux pipe-pane](https://man.openbsd.org/tmux#pipe-pane). Real-tmux tests verify raw marker ordering, command status, existing hooks, and terminal stdin/stdout.
