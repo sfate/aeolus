@@ -812,7 +812,7 @@ func (m Model) renderSessionList(width, height int) string {
 func (m Model) helpBar() string {
 	responses := ""
 	if m.response != nil {
-		return styleHelp.Render("Sending response to " + m.response.session.Pane.PaneID + " - response keys disabled until delivery completes")
+		return m.theme.styleHelp.Render("Sending response to " + m.response.session.Pane.PaneID + " - response keys disabled until delivery completes")
 	}
 	if m.cursor >= 0 && m.cursor < len(m.sessions) && m.unreadAttention(m.sessions[m.cursor]) != "" {
 		responses = "  [!] Acknowledge"
@@ -828,9 +828,9 @@ func (m Model) footer() string {
 	if m.composer.active {
 		if m.composer.library.active {
 			if m.composer.library.naming {
-				return styleHelp.Render("[enter] Save unique name  [esc] Back to library")
+				return m.theme.styleHelp.Render("[enter] Save unique name  [esc] Back to library")
 			}
-			return styleHelp.Render("[j/k] Select  [enter] Insert  [s] Save draft  [ctrl+r] Reload  [pgup/pgdown] Preview  [esc] Back")
+			return m.theme.styleHelp.Render("[j/k] Select  [enter] Insert  [s] Save draft  [ctrl+r] Reload  [pgup/pgdown] Preview  [esc] Back")
 		}
 		if m.composer.context.active {
 			return m.theme.styleHelp.Render("[enter] Attach for review  [esc] Back to draft")
