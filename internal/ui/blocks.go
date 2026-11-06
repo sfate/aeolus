@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/sfate/aeolus/internal/history"
 	"github.com/sfate/aeolus/internal/shellblocks"
 )
 
@@ -115,6 +116,24 @@ func (m *Model) blockBrowserKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 			return true, nil
 		}
 		return true, m.loadBlocks()
+	case "s":
+		if m.blocks.selection >= len(m.blocks.blocks) || m.blocks.loading || m.historySaving {
+			return true, nil
+		}
+		block := m.blocks.blocks[m.blocks.selection]
+		if block.ExitCode == nil || block.Incomplete {
+			m.blocks.err = fmt.Errorf("only completed commands can be saved")
+			m.updateViewport()
+			return true, nil
+		}
+		m.blocks.err = nil
+		return true, m.saveHistoryEntry(history.Entry{
+			Command:   block.Command,
+			Directory: block.Directory,
+			ExitCode:  block.ExitCode,
+			Duration:  block.Duration,
+			SavedAt:   time.Now(),
+		})
 	case "up", "k":
 		if m.blocks.selection > 0 {
 			m.blocks.selection--
@@ -181,6 +200,10 @@ func (m Model) blocksView() string {
 		}
 		text.WriteString(output)
 	}
-	text.WriteString("\n\n[↑↓/j/k] Select  [r] Refresh  [esc] Close")
+	text.WriteString("\n\n[↑↓/j/k] Select  [r] Refresh")
+	if b.selection < len(b.blocks) && b.blocks[b.selection].ExitCode != nil && !b.blocks[b.selection].Incomplete {
+		text.WriteString("  [s] Save command to history")
+	}
+	text.WriteString("  [esc] Close")
 	return text.String()
 }
