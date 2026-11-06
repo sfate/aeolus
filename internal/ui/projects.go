@@ -16,6 +16,7 @@ func (m *Model) cycleProjectPreset() {
 		return
 	}
 	form := &m.lifecycle
+	form.shell = false
 	form.preset = (form.preset + 1) % len(m.projects)
 	project := m.projects[form.preset]
 	form.text = project.Directory

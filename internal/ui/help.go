@@ -63,7 +63,7 @@ func (m Model) helpText() string {
 			context += "No approval shortcuts available. Open the pane to inspect or respond."
 		}
 	}
-	return context + `
+	return m.shortcutHelp(context + `
 
 Dashboard
 [j/down] Next session  [k/up] Previous session
@@ -125,7 +125,7 @@ Help
 [esc] Close  [ctrl+c] Quit
 Session shortcuts are disabled while help is open
 In text inputs, ? remains ordinary text
-`
+`)
 }
 
 func (m Model) helpView() string {

@@ -26,6 +26,7 @@ func shellSession() monitor.Session {
 func TestLaunchShellSession(t *testing.T) {
 	b := &shellBackend{}
 	m := NewModelWithBackend(b, &fakeMonitor{})
+	m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = key(m, t, "c")
 	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyShiftTab})
 	if !m.lifecycle.shell || !strings.Contains(m.lifecycleView(), "Shell (zsh)") {
@@ -46,6 +47,7 @@ func TestShellFilterAndComposer(t *testing.T) {
 	b := &textBackend{}
 	m := NewModelWithBackend(b, &fakeMonitor{})
 	m.sessions = []monitor.Session{testSession("%1"), shellSession()}
+	m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.filters.applied.provider = len(filterProviders)
 	m.applyFilters()
 	if len(m.sessions) != 1 || !strings.Contains(m.filterSummary(), "Shell") || !strings.Contains(sessionLabel(m.sessions[0]), "Shell") {

@@ -19,48 +19,51 @@ type commandPalette struct {
 	provider        monitor.Provider
 }
 
-type paletteAction struct{ label, key string }
+type paletteAction struct{ label, key, binding string }
 
 func (m Model) paletteActions() []paletteAction {
-	actions := []paletteAction{{"Keyboard help", "?"}, {"Filter sessions", "f"}, {"Refresh sessions", "r"}, {"Quit Aeolus", "q"}}
+	actions := []paletteAction{{"Keyboard help", "?", ""}, {"Filter sessions", "f", ""}, {"Refresh sessions", "r", ""}, {"Quit Aeolus", "q", ""}}
 	_, lifecycle := m.backend.(tmux.Lifecycle)
 	if lifecycle {
-		actions = append(actions, paletteAction{"Launch agent", "c"})
+		actions = append(actions, paletteAction{"Launch agent", "c", ""})
 	}
 	if m.cursor >= 0 && m.cursor < len(m.sessions) {
 		s := m.sessions[m.cursor]
 		if s.Pane.PaneID == m.palette.paneID && s.Provider == m.palette.provider {
-			actions = append(actions, paletteAction{"Switch to selected pane", "enter"}, paletteAction{"Search captured output", "/"}, paletteAction{"Kill pane (confirm first)", "x"})
+			actions = append(actions, paletteAction{"Switch to selected pane", "enter", ""}, paletteAction{"Search captured output", "/", ""}, paletteAction{"Kill pane (confirm first)", "x", ""})
 			if m.cursor > 0 {
-				actions = append(actions, paletteAction{"Previous session", "k"})
+				actions = append(actions, paletteAction{"Previous session", "k", ""})
 			}
 			if m.cursor < len(m.sessions)-1 {
-				actions = append(actions, paletteAction{"Next session", "j"})
+				actions = append(actions, paletteAction{"Next session", "j", ""})
 			}
 			if m.search.active() && m.search.paneID == s.Pane.PaneID {
-				actions = append(actions, paletteAction{"Clear output search", "esc"})
+				actions = append(actions, paletteAction{"Clear output search", "esc", ""})
 			}
 			if lifecycle {
-				actions = append(actions, paletteAction{"Rename selected window", "R"})
+				actions = append(actions, paletteAction{"Rename selected window", "R", ""})
 			}
 			if _, ok := m.backend.(textSender); ok {
-				actions = append(actions, paletteAction{"Compose prompt", "i"})
+				actions = append(actions, paletteAction{"Compose prompt", "i", ""})
 			}
 			if s.Pane.CurrentPath != "" {
-				actions = append(actions, paletteAction{"Git review", "g"})
+				actions = append(actions, paletteAction{"Git review", "g", ""})
 			}
 			if s.CanRespond() {
 				switch s.Status {
 				case monitor.StatusPermission:
-					actions = append(actions, paletteAction{"Approve request", "y"}, paletteAction{"Approve for session", "a"}, paletteAction{"Deny request", "n"})
+					actions = append(actions, paletteAction{"Approve request", "y", ""}, paletteAction{"Approve for session", "a", ""}, paletteAction{"Deny request", "n", ""})
 				case monitor.StatusQuestion:
-					actions = append(actions, paletteAction{"Answer yes", "y"}, paletteAction{"Answer no", "n"})
+					actions = append(actions, paletteAction{"Answer yes", "y", ""}, paletteAction{"Answer no", "n", ""})
 				}
 			}
 		}
 	}
 	query := strings.ToLower(m.palette.query)
 	filtered := make([]paletteAction, 0, len(actions))
+	for i := range actions {
+		actions[i].binding = m.dashboardBindingForCanonical(actions[i].key)
+	}
 	for _, action := range actions {
 		if strings.Contains(strings.ToLower(action.label), query) {
 			filtered = append(filtered, action)
@@ -98,12 +101,14 @@ func (m Model) updatePalette(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		for _, action := range m.paletteActions() {
 			if action.key == p.selected {
 				m.palette = commandPalette{}
-				key := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(action.key)}
-				if action.key == "enter" {
+				var key tea.KeyMsg
+				switch action.binding {
+				case "enter":
 					key = tea.KeyMsg{Type: tea.KeyEnter}
-				}
-				if action.key == "esc" {
+				case "esc":
 					key = tea.KeyMsg{Type: tea.KeyEsc}
+				default:
+					key = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(action.binding)}
 				}
 				return m.Update(key)
 			}
@@ -196,7 +201,7 @@ func (m Model) paletteView() string {
 		if i == selected {
 			marker = "> "
 		}
-		fmt.Fprintf(&text, "%s%s [%s]\n", marker, actions[i].label, actions[i].key)
+		fmt.Fprintf(&text, "%s%s [%s]\n", marker, actions[i].label, actions[i].binding)
 	}
 	if len(actions) == 0 {
 		text.WriteString("No matching actions.\n")

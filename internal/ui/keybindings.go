@@ -30,7 +30,7 @@ func (m Model) dashboardKey(msg tea.KeyMsg) (tea.KeyMsg, bool) {
 }
 
 func (m Model) shortcutHelp(text string) string {
-	pairs := []string{"[↑↓/jk]", "[↑/" + m.dashboardBinding("previous") + " ↓/" + m.dashboardBinding("next") + "]"}
+	pairs := []string{"[↑↓/jk]", "[↑/" + m.dashboardBinding("previous") + " ↓/" + m.dashboardBinding("next") + "]", "[j/down]", "[" + m.dashboardBinding("next") + "/down]", "[k/up]", "[" + m.dashboardBinding("previous") + "/up]"}
 	for action, custom := range m.keybindings {
 		canonical := config.DashboardKeys[action]
 		pairs = append(pairs, "["+canonical+"]", "["+custom+"]")
@@ -43,4 +43,13 @@ func (m Model) dashboardBinding(action string) string {
 		return custom
 	}
 	return config.DashboardKeys[action]
+}
+
+func (m Model) dashboardBindingForCanonical(key string) string {
+	for action, canonical := range config.DashboardKeys {
+		if canonical == key {
+			return m.dashboardBinding(action)
+		}
+	}
+	return key
 }

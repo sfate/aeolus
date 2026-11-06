@@ -329,10 +329,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.KeyMsg:
-		if m.palette.active || (msg.String() == "ctrl+k" && !m.help.active && m.helpAvailable()) {
+		if !m.worktree.active && !m.lifecycle.busy && (m.palette.active || (msg.String() == "ctrl+k" && !m.help.active && m.helpAvailable())) {
 			return m.updatePalette(msg)
 		}
-		if m.help.active || (msg.String() == "?" && m.helpAvailable()) {
+		if !m.worktree.active && !m.lifecycle.busy && (m.help.active || (msg.String() == "?" && m.helpAvailable())) {
 			return m.updateHelp(msg)
 		}
 		if m.confirmKill == "" && !m.review.active && !m.composer.active && !m.filters.editing && m.lifecycle.kind == lifecycleNone && !m.search.editing {

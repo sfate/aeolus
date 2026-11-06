@@ -7,7 +7,7 @@ import (
 	"github.com/sfate/aeolus/internal/preferences"
 )
 
-var preferenceProviders = []string{"", "claude", "codex", "gemini", "unknown"}
+var preferenceProviders = []string{"", "claude", "codex", "gemini", "unknown", "shell"}
 var preferenceStatuses = []string{"", "unknown", "idle", "working", "permission", "question"}
 
 type preferencesSavedMsg struct{ err error }

@@ -64,14 +64,14 @@ func (c Client) CreateSession(directory, command string) (Pane, error) {
 	default:
 		return Pane{}, fmt.Errorf("unsupported agent %q: choose claude, codex, or gemini", command)
 	}
-	return createSession(directory, command, false)
+	return c.createSession(directory, command, false)
 }
 
-func (Client) CreateShellSession(directory string) (Pane, error) {
-	return createSession(directory, "zsh", true)
+func (c Client) CreateShellSession(directory string) (Pane, error) {
+	return c.createSession(directory, "zsh", true)
 }
 
-func createSession(directory, command string, shell bool) (Pane, error) {
+func (c Client) createSession(directory, command string, shell bool) (Pane, error) {
 	directory, err := filepath.Abs(directory)
 	if err != nil {
 		return Pane{}, fmt.Errorf("resolve project directory: %w", err)

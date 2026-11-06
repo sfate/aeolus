@@ -62,7 +62,7 @@ func (m Model) layoutFooter() string {
 	if m.search.active() {
 		return m.searchHelp()
 	}
-	return "[j/k] [enter] [c] [q]"
+	return strings.NewReplacer("[j/k]", "["+m.dashboardBinding("previous")+"/"+m.dashboardBinding("next")+"]").Replace(m.shortcutHelp("[j/k] [enter] [c] [q]"))
 }
 
 // focusInput keeps the insertion cursor visible while retaining the original value.

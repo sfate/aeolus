@@ -34,7 +34,7 @@ func DefaultPath() (string, error) {
 
 func validate(s Snapshot) error {
 	switch s.Provider {
-	case "", "all", "claude", "codex", "gemini", "unknown":
+	case "", "all", "claude", "codex", "gemini", "unknown", "shell":
 	default:
 		return fmt.Errorf("invalid saved provider")
 	}
