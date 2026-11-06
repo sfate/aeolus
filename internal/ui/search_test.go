@@ -21,6 +21,8 @@ func key(m Model, t *testing.T, s string) Model {
 		typ = tea.KeyCtrlN
 	case "ctrl+p":
 		typ = tea.KeyCtrlP
+	case "ctrl+s":
+		typ = tea.KeyCtrlS
 	case "left":
 		typ = tea.KeyLeft
 	}

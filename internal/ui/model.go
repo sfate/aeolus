@@ -123,6 +123,7 @@ type Model struct {
 	layoutNotice      string
 	attention         map[string]sessionAttention
 	blocks            blockBrowser
+	shellBatch        shellBatchState
 	blockRead         func(string) ([]shellblocks.Block, error)
 	blockCopy         func(string) error
 }
@@ -219,6 +220,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case responseSentMsg:
 		m.finishResponse(msg)
+		return m, nil
+	case shellBatchMsg:
+		m.finishShellBatch(msg)
 		return m, nil
 	case worktreeCreatedMsg:
 		return m.finishWorktreeCreate(msg)
@@ -377,6 +381,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.MouseMsg:
+		if m.shellBatch.active {
+			return m, nil
+		}
 		if m.palette.active {
 			return m, nil
 		}
@@ -395,6 +402,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if handled, cmd := m.shellBatchKey(msg); handled {
+			if m.quitting {
+				return m, tea.Quit
+			}
+			return m, cmd
+		}
 		if handled, cmd := m.layoutKey(msg); handled {
 			if m.quitting {
 				return m, tea.Quit
@@ -582,6 +595,12 @@ func contentPaneHeight(total int) int { return max(1, total-7) }
 // - permission sessions: top (so the parsed summary is immediately visible)
 // - others: bottom (so the most recent terminal output is visible)
 func (m *Model) updateViewport() {
+	if m.shellBatch.active {
+		m.resizeViewport()
+		m.viewport.SetContent(m.shellBatchView())
+		m.viewport.GotoTop()
+		return
+	}
 	if m.help.active {
 		m.resizeHelp()
 	}
@@ -779,6 +798,9 @@ func (m Model) view() string {
 	}
 	if m.width < 24 || m.height < 12 {
 		return fitScreen("Resize to at least 24x12.\n[q] Quit", m.width, m.height)
+	}
+	if m.shellBatch.active {
+		return fitScreen(m.shellBatchView(), m.width, m.height)
 	}
 	if m.palette.active {
 		return fitScreen(m.paletteView(), m.width, m.height)
