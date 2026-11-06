@@ -187,7 +187,7 @@ func Load(path string) ([]Layout, error) {
 	if e != nil {
 		return nil, fmt.Errorf("open layouts: %w", e)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	i, e := f.Stat()
 	if e != nil {
 		return nil, e
@@ -285,7 +285,7 @@ func Save(path string, l Layout) error {
 	if e != nil {
 		return e
 	}
-	defer lock.Close()
+	defer func() { _ = lock.Close() }()
 	info, e := lock.Stat()
 	if e != nil {
 		return e
@@ -296,7 +296,7 @@ func Save(path string, l Layout) error {
 	if e = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); e != nil {
 		return fmt.Errorf("layout store is busy: %w", e)
 	}
-	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	defer func() { _ = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }()
 	ls, e := Load(path)
 	if e != nil {
 		return e
@@ -323,7 +323,7 @@ func Save(path string, l Layout) error {
 		return e
 	}
 	name := tmp.Name()
-	defer func() { tmp.Close(); os.Remove(name) }()
+	defer func() { _ = tmp.Close(); _ = os.Remove(name) }()
 	if e = tmp.Chmod(0600); e != nil {
 		return e
 	}
