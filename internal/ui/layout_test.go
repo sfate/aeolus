@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/sfate/aeolus/internal/monitor"
+	notebookstore "github.com/sfate/aeolus/internal/notebooks"
 	"github.com/sfate/aeolus/internal/shellblocks"
 )
 
@@ -31,7 +32,7 @@ func assertFits(t *testing.T, text string, width, height int) {
 
 func TestLayoutBoundsAcrossModes(t *testing.T) {
 	for _, size := range [][2]int{{1, 1}, {12, 5}, {24, 12}, {40, 20}, {79, 24}, {80, 24}, {120, 40}} {
-		for _, mode := range []string{"dashboard", "permission", "question", "empty", "error", "missing", "launch", "rename", "composer", "attach", "filters", "review", "search", "local-search", "blocks"} {
+		for _, mode := range []string{"dashboard", "permission", "question", "empty", "error", "missing", "launch", "rename", "composer", "attach", "filters", "review", "search", "local-search", "blocks", "notebooks"} {
 			t.Run(fmt.Sprintf("%s/%dx%d", mode, size[0], size[1]), func(t *testing.T) {
 				m := NewModel()
 				s := testSession("%1")
@@ -76,6 +77,8 @@ func TestLayoutBoundsAcrossModes(t *testing.T) {
 					m.search = outputSearch{editing: true, paneID: "%1", query: strings.Repeat("界", 80), position: 80}
 				case "local-search":
 					m.localSearch = localSearchState{active: true, query: strings.Repeat("界", 80), results: []localSearchResult{{kind: localPrompt, name: "Unicode", preview: strings.Repeat("界", 80)}}}
+				case "notebooks":
+					m.notebooks = notebookLibrary{active: true, viewing: true, document: 0, command: 0, documents: []notebookstore.Document{{Title: "Runbook", Blocks: []notebookstore.Block{{Kind: notebookstore.Markdown, Content: strings.Repeat("# heading\n", 50)}, {Kind: notebookstore.Shell, Content: "echo run"}}}}}
 				case "blocks":
 					m.blocks = blockBrowser{
 						active: true, paneID: "%1", captureID: testCaptureID,

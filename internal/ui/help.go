@@ -119,6 +119,12 @@ Git review
 [ctrl+b/ctrl+f] Page  [ctrl+u/ctrl+d] Half page
 [esc] Close  [ctrl+c] Quit
 
+Local notebooks
+Open with the command palette from a selected shell session
+[N] Create a notebook  [Enter] Open  [type] Fuzzy search
+Fenced shell blocks require r then y to submit to the shell
+[Ctrl+S] Save notebook text; saving does not execute it
+
 Command palette
 [text] Filter actions  [up/down/ctrl+p/ctrl+n] Select action
 [enter] Execute selected action  [esc] Cancel  [ctrl+c] Quit
