@@ -247,7 +247,9 @@ func TestInjectedBackend(t *testing.T) {
 		t.Fatal("switch did not use backend")
 	}
 	m.sessions[0].Status = monitor.StatusPermission
-	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	var responseCmd tea.Cmd
+	m, responseCmd = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m, _ = updateModel(t, m, responseCmd())
 	if backend.sent != "%7:Down,Enter" {
 		t.Fatalf("sent=%q", backend.sent)
 	}
@@ -266,7 +268,9 @@ func TestInjectedResponseKeys(t *testing.T) {
 			m := NewModelWithBackend(backend, &fakeMonitor{})
 			m.sessions = []monitor.Session{testSession("%1")}
 			m.sessions[0].Status = status
-			m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
+			var responseCmd tea.Cmd
+			m, responseCmd = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
+			m, _ = updateModel(t, m, responseCmd())
 			if backend.sent != "%1:"+string(key) {
 				t.Fatalf("key %c status %v sent %q", key, status, backend.sent)
 			}

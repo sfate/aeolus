@@ -55,6 +55,8 @@ Press `?` from the dashboard to open scrollable keyboard help. The first section
 
 Use arrows, j/k, page up/down, or Home/End to scroll and Escape to return to the dashboard. Session actions are disabled while help is open; Ctrl+C quits. In text inputs, `?` stays ordinary text. Close other modals before opening help.
 
+Approval and yes/no response keys run asynchronously. While a response is being delivered, repeated response keys are disabled. The request remains visible until delivery succeeds; failures retain it and show an error. A transport failure can occur after some keys reached the pane, so inspect the pane before retrying. Completion stays bound to the original pane and does not clear a newer request discovered during refresh.
+
 ## Session lifecycle
 
 Press `c` to open the launch form. Use tab or shift+tab to choose Claude, Codex, or Gemini, edit the project directory, and press enter. The directory must exist and the selected agent must be on PATH. Absolute paths, relative paths, and `~/` paths are supported. Launch creates a uniquely named detached tmux session and selects it in the dashboard. It works outside tmux and can start a missing tmux server. Agent authentication and setup remain in the agent itself; open its pane to interact.

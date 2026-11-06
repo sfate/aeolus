@@ -76,7 +76,9 @@ func TestFilteredActionsAndRemoval(t *testing.T) {
 	m.cursor = 1
 	m.filters.applied = filterChoice{provider: 1, status: 4}
 	m.applyFilters()
-	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	var responseCmd tea.Cmd
+	m, responseCmd = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	m, _ = updateModel(t, m, responseCmd())
 	if backend.sent != "%2:y" || len(m.sessions) != 0 {
 		t.Fatalf("sent=%q visible=%d", backend.sent, len(m.sessions))
 	}
