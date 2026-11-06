@@ -28,9 +28,12 @@ func (m Model) paletteActions() []paletteAction {
 		actions = append(actions, paletteAction{"Launch agent", "c"})
 	}
 	if m.cursor >= 0 && m.cursor < len(m.sessions) {
-		actions = append(actions, paletteAction{"Search local library", "local-search"})
 		s := m.sessions[m.cursor]
 		if s.Pane.PaneID == m.palette.paneID && s.Provider == m.palette.provider {
+			actions = append(actions, paletteAction{"Search local library", "local-search"})
+			if s.Kind == monitor.SessionShell {
+				actions = append(actions, paletteAction{"Browse local notebooks", "notebooks"})
+			}
 			actions = append(actions, paletteAction{"Switch to selected pane", "enter"}, paletteAction{"Search captured output", "/"}, paletteAction{"Kill pane (confirm first)", "x"})
 			if m.cursor > 0 {
 				actions = append(actions, paletteAction{"Previous session", "k"})
@@ -108,6 +111,10 @@ func (m Model) updatePalette(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 				if action.key == "local-search" {
 					cmd := m.openLocalSearch()
+					return m, cmd
+				}
+				if action.key == "notebooks" {
+					cmd := m.openNotebookBrowser()
 					return m, cmd
 				}
 				return m.Update(key)

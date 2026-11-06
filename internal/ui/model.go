@@ -115,6 +115,9 @@ type Model struct {
 	palette           commandPalette
 	localSearch       localSearchState
 	localSeq          uint64
+	notebooks         notebookLibrary
+	notebookSeq       uint64
+	notebookIO        notebookOperations
 	attention         map[string]sessionAttention
 	blocks            blockBrowser
 	blockRead         func(string) ([]shellblocks.Block, error)
@@ -250,6 +253,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case blockCopiedMsg:
 		m.finishBlockCopy(msg)
 		return m, nil
+	case notebooksLoadedMsg:
+		m.finishNotebooksLoad(msg)
+		return m, nil
+	case notebookSavedMsg:
+		m.finishNotebookSave(msg)
+		return m, nil
+	case notebookRunMsg:
+		m.finishNotebookRun(msg)
+		return m, nil
 
 	case lifecycleMsg:
 		return m.finishLifecycle(msg)
@@ -372,6 +384,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if handled, cmd := m.notebookKey(msg); handled {
+			if m.quitting {
+				return m, tea.Quit
+			}
+			return m, cmd
+		}
 		if handled, cmd := m.localSearchKey(msg); handled {
 			if m.quitting {
 				return m, tea.Quit
@@ -550,6 +568,24 @@ func (m *Model) updateViewport() {
 	if m.help.active {
 		m.resizeHelp()
 	}
+	if m.notebooks.active {
+		m.resizeNotebookViewport()
+		m.viewport.SetContent(m.notebookBody())
+		if !m.notebooks.loading {
+			row := m.notebooks.selected + 3
+			if m.notebooks.creating && !m.notebooks.editingTitle {
+				row = strings.Count(string([]rune(m.notebooks.source)[:m.notebooks.position]), "\n") + 5
+			} else if m.notebooks.viewing {
+				row = 0
+			}
+			if row < m.viewport.YOffset {
+				m.viewport.SetYOffset(row)
+			} else if row >= m.viewport.YOffset+m.viewport.Height {
+				m.viewport.SetYOffset(row - m.viewport.Height + 1)
+			}
+		}
+		return
+	}
 	if m.blocks.active {
 		m.viewport.SetContent(m.blocksView())
 		m.viewport.GotoTop()
@@ -727,6 +763,9 @@ func (m Model) view() string {
 	}
 	if m.localSearch.active {
 		return fitScreen(m.localSearchView(), m.width, m.height)
+	}
+	if m.notebooks.active {
+		return m.notebookView()
 	}
 	if m.help.active {
 		return fitScreen(m.helpView(), m.width, m.height)

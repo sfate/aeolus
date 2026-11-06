@@ -140,6 +140,12 @@ Press `s` in the library to save the current draft under a name, then `enter` to
 
 The versioned JSON library lives at `$XDG_DATA_HOME/aeolus/prompts.json`, falling back to `~/.local/share/aeolus/prompts.json`. New directories use mode 0700 and library files use mode 0600. Writes use a lock, reload the current library, and replace it atomically. Busy libraries report an error rather than losing another instance's changes. Corrupt or unsupported files are never silently overwritten. The library allows up to 128 prompts, each with an 80-character name and 64 KiB of valid UTF-8 text; total JSON is limited to 1 MiB. Unknown or duplicate JSON fields, missing/null prompt arrays, duplicate names, and unsupported control characters are rejected. Provider integration configuration remains separate.
 
+## Local notebooks
+
+From a selected shell session, press `ctrl+k` and choose Browse local notebooks. Type to fuzzy search, press Enter to open, or `N` to create a notebook. Write Markdown notes and put runnable commands in fenced `sh` blocks. Press `ctrl+s` to save the notebook locally; saving never runs a command.
+
+To run a saved command block, select it in the notebook and press `r` to review the exact command, then `y` to submit it to the original shell. Escape or `n` cancels. Aeolus checks that the same shell is still available before submission. Notebook files are versioned, validated, and stored privately at `$XDG_DATA_HOME/aeolus/notebooks.json` or `~/.local/share/aeolus/notebooks.json`. Saving stores the text you entered, so leave secrets out of notebook documents.
+
 ## Local command workflows
 
 In an explicit shell session's composer, press `ctrl+w` to open saved workflows. Write a template such as `rg {{pattern}} {{path}}` in the draft, open workflows, press `s`, and enter a unique name to save it. Saving retains the draft. Escape back to the draft, then Escape again to discard it before opening a fresh composer for reuse. Names and templates are saved locally; avoid secrets in saved text.
