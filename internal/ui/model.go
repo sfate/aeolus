@@ -714,14 +714,15 @@ func (m Model) view() string {
 
 func (m Model) screenView() string {
 	// Header
-	title := m.theme.styleHeader.Render(" Aeolus - Agent Session Manager ")
+	title := m.theme.styleHeader.Render(" AEOLUS ")
+	subtitle := m.theme.styleHelp.Render("TERMINAL SESSION DASHBOARD")
 	ts := ""
 	if !m.lastRefresh.IsZero() {
 		ts = m.theme.renderer.NewStyle().Foreground(m.theme.colorHelp).Render(
 			fmt.Sprintf(" last refresh: %s", m.lastRefresh.Format("15:04:05")),
 		)
 	}
-	header := fitLine(lipgloss.JoinHorizontal(lipgloss.Top, title, ts), m.width)
+	header := fitLine(lipgloss.JoinHorizontal(lipgloss.Top, title, subtitle, ts), m.width)
 	header += "\n" + fitLine(m.theme.styleHelp.Render(m.filterSummary()), m.width)
 	if m.preferenceNotice != "" {
 		header += "\n" + fitLine(safeReviewText(m.preferenceNotice), m.width)
