@@ -67,31 +67,30 @@ type SessionMonitor interface {
 
 // Model is the main Bubble Tea model for Aeolus.
 type Model struct {
-	theme           dashboardTheme
-	keybindings     map[string]string
-	interval        time.Duration
-	projects        []config.Project
-	defaultProvider string
-	backend         tmux.Backend
-	monitor         SessionMonitor
-	sessions        []monitor.Session
-	cursor          int
-	width           int
-	height          int
-	lastRefresh     time.Time
-	err             error
-	quitting        bool
-	viewport        viewport.Model
-	tmuxMissing     bool
-	confirmKill     string
-	search          outputSearch
-	lifecycle       lifecycleForm
-	composer        promptComposer
-	contextRequest  uint64
-	filters         sessionFilters
-	allSessions     []monitor.Session
-	review          gitReviewState
-
+	theme             dashboardTheme
+	keybindings       map[string]string
+	interval          time.Duration
+	projects          []config.Project
+	defaultProvider   string
+	backend           tmux.Backend
+	monitor           SessionMonitor
+	sessions          []monitor.Session
+	cursor            int
+	width             int
+	height            int
+	lastRefresh       time.Time
+	err               error
+	quitting          bool
+	viewport          viewport.Model
+	tmuxMissing       bool
+	confirmKill       string
+	search            outputSearch
+	lifecycle         lifecycleForm
+	composer          promptComposer
+	contextRequest    uint64
+	filters           sessionFilters
+	allSessions       []monitor.Session
+	review            gitReviewState
 	refreshing        bool
 	refreshQueued     bool
 	refreshObsolete   bool
@@ -105,6 +104,8 @@ type Model struct {
 	preferenceNotice  string
 	preferenceSave    func(preferences.Snapshot) error
 	attention         map[string]sessionAttention
+	workflowRequest   uint64
+	workflowIO        workflowOperations
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -311,6 +312,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case promptSentMsg:
 		m.promptSent(msg)
+		return m, nil
+
+	case workflowResultMsg:
+		m.workflowResult(msg)
 		return m, nil
 
 	case tea.MouseMsg:
@@ -849,8 +854,14 @@ func (m Model) footer() string {
 			}
 			return m.theme.styleHelp.Render("[j/k] Select  [enter] Insert  [s] Save draft  [ctrl+r] Reload  [pgup/pgdown] Preview  [esc] Back")
 		}
+		if m.composer.workflows.active {
+			return m.theme.styleHelp.Render(m.workflowFooter())
+		}
 		if m.composer.context.active {
 			return m.theme.styleHelp.Render("[enter] Attach for review  [esc] Back to draft")
+		}
+		if m.composer.kind == monitor.SessionShell {
+			return m.theme.styleHelp.Render("[enter] New line  [ctrl+s] Execute  [ctrl+w] Workflows  [ctrl+o] Attach file  [esc] Cancel")
 		}
 		return m.theme.styleHelp.Render("[enter] New line  [ctrl+s] Send  [ctrl+o] Attach file  [ctrl+p] Prompts  [esc] Cancel")
 	}
