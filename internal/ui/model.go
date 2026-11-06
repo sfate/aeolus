@@ -168,6 +168,7 @@ type Model struct {
 	response        *pendingResponse
 	responseID      uint64
 	worktree        worktreeForm
+	palette         commandPalette
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -355,6 +356,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.MouseMsg:
+		if m.palette.active {
+			return m, nil
+		}
 		if m.help.active {
 			var cmd tea.Cmd
 			m.help.viewport, cmd = m.help.viewport.Update(msg)
@@ -362,6 +366,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.KeyMsg:
+		if m.palette.active || (msg.String() == "ctrl+k" && !m.help.active && m.helpAvailable()) {
+			return m.updatePalette(msg)
+		}
 		if m.help.active || (msg.String() == "?" && m.helpAvailable()) {
 			return m.updateHelp(msg)
 		}
@@ -662,6 +669,9 @@ func (m Model) View() string {
 	if m.help.active {
 		return m.helpView()
 	}
+	if m.palette.active {
+		return m.paletteView()
+	}
 
 	// Header
 	title := styleHeader.Render(" Aeolus - Agent Session Manager ")
@@ -825,7 +835,7 @@ func (m Model) helpBar() string {
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
 		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
-	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [g] Git review  [W] Worktree  [f] Filter  [/] Search  [i] Compose  [?] Help  [q] Quit")
+	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [g] Git review  [W] Worktree  [f] Filter  [/] Search  [i] Compose  [?] Help  [ctrl+k] Palette  [q] Quit")
 }
 
 func (m Model) footer() string {

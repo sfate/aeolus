@@ -49,6 +49,7 @@ make run     # go run .
 | `esc` | Cancel query editing or clear the search |
 | `q` | Quit |
 | `?` | Open contextual keyboard help |
+| `ctrl+k` | Search dashboard actions in the command palette |
 
 ## Keyboard help
 
@@ -57,6 +58,12 @@ Press `?` from the dashboard to open scrollable keyboard help. The first section
 Use arrows, j/k, page up/down, or Home/End to scroll and Escape to return to the dashboard. Session actions are disabled while help is open; Ctrl+C quits. In text inputs, `?` stays ordinary text. Close other modals before opening help.
 
 Approval and yes/no response keys run asynchronously. While a response is being delivered, repeated response keys are disabled. The request remains visible until delivery succeeds; failures retain it and show an error. A transport failure can occur after some keys reached the pane, so inspect the pane before retrying. Completion stays bound to the original pane and does not clear a newer request discovered during refresh.
+
+## Command palette
+
+Press `ctrl+k` from the dashboard to search available actions. Type a case-insensitive substring, select with up/down or ctrl+p/ctrl+n, and press Enter to execute. Escape cancels. The palette uses the same handlers as dashboard shortcuts, so choosing Kill pane opens the existing confirmation before termination. Launch, rename, and composer actions appear only when the backend supports them; approval actions require a supported request from the original selected provider. If that pane disappears or changes provider, its actions become unavailable until you close and reopen the palette. Background refresh does not retarget a pending selection to another session.
+
+Edit the query with left/right, Home/End or ctrl+a/ctrl+e, Backspace/Delete, and ctrl+u to clear. Ordinary letters, including dashboard shortcuts, stay query text. Open the palette after closing other modals; Ctrl+C quits from the palette.
 
 ## Session lifecycle
 

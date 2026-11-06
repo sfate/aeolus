@@ -73,6 +73,7 @@ Dashboard
 [r] Refresh sessions  [g] Read-only Git review
 [f] Filter sessions  [/] Search captured output
 [i] Compose a prompt  [?] Open this help
+[ctrl+k] Search dashboard actions in the command palette
 [q/ctrl+c] Quit from dashboard
 [pgup/pgdown/ctrl+b/ctrl+f] Scroll output by page
 [ctrl+u/ctrl+d] Scroll output by half page
@@ -111,6 +112,12 @@ Git review
 [up/down/j/k/pgup/pgdown] Scroll  [r] Reload snapshot
 [ctrl+b/ctrl+f] Page  [ctrl+u/ctrl+d] Half page
 [esc] Close  [ctrl+c] Quit
+
+Command palette
+[text] Filter actions  [up/down/ctrl+p/ctrl+n] Select action
+[enter] Execute selected action  [esc] Cancel  [ctrl+c] Quit
+[left/right/home/end] Edit query  [ctrl+u] Clear query
+[backspace/ctrl+h/delete] Delete query text
 
 Help
 [up/down/j/k/pgup/pgdown] Scroll  [home/end] First/last page
