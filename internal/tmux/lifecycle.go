@@ -131,7 +131,6 @@ func createSessionWithCapture(directory, command string, shell bool, providerArg
 	if beforeLaunch != nil {
 		beforeLaunch()
 	}
-	}
 	out, err := lifecycleOutput(args...)
 	if err != nil {
 		return Pane{}, &LaunchUncertainError{Err: err}
