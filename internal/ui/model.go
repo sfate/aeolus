@@ -169,6 +169,7 @@ type Model struct {
 	responseID      uint64
 	worktree        worktreeForm
 	palette         commandPalette
+	attention       map[string]sessionAttention
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -304,6 +305,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = nil
 			m.tmuxMissing = false
 			selected := m.selectedPaneID()
+			m.observeAttention(msg.sessions)
 			m.allSessions = append([]monitor.Session{}, msg.sessions...)
 			m.rebuildFilteredSessions(selected)
 			m.lastRefresh = time.Now()
@@ -335,6 +337,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		selected := m.selectedPaneID()
 		m.syncFilterSource()
 		m.allSessions = removePane(m.allSessions, msg.paneID)
+		delete(m.attention, msg.paneID)
 		m.rebuildFilteredSessions(selected)
 		if m.cursor >= len(m.sessions) && len(m.sessions) > 0 {
 			m.cursor = len(m.sessions) - 1
@@ -431,6 +434,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.String() {
+		case "!":
+			m.acknowledgeAttention()
+			return m, nil
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
@@ -573,6 +579,20 @@ func tailLines(text string, n int) string {
 // For permission sessions: parsed summary on top + last 15 lines of raw pane for context.
 // For others: last N lines so the most recent output is visible.
 func (m *Model) contentPaneText() string {
+	content := m.sessionContentPaneText()
+	if m.cursor >= 0 && m.cursor < len(m.sessions) && m.confirmKill == "" {
+		if unread := m.unreadAttention(m.sessions[m.cursor]); unread != "" {
+			banner := "! Unread: " + unread + "  [!] Acknowledge"
+			if m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion {
+				return banner + "\n\n" + content
+			}
+			return content + "\n\n" + banner
+		}
+	}
+	return content
+}
+
+func (m *Model) sessionContentPaneText() string {
 	if len(m.sessions) == 0 || m.cursor >= len(m.sessions) {
 		return ""
 	}
@@ -786,6 +806,9 @@ func (m Model) renderSessionList(width, height int) string {
 
 		icon := statusStyle(s.Status).Render(statusIcon(s.Status))
 		name := sessionLabel(s)
+		if m.unreadAttention(s) != "" {
+			name = "! " + name
+		}
 		statusTag := fmt.Sprintf("[%s]", s.Status.String())
 
 		// Pad name to fixed width for alignment
@@ -831,9 +854,12 @@ func (m Model) helpBar() string {
 	if m.response != nil {
 		return styleHelp.Render("Sending response to " + m.response.session.Pane.PaneID + " - response keys disabled until delivery completes")
 	}
+	if m.cursor >= 0 && m.cursor < len(m.sessions) && m.unreadAttention(m.sessions[m.cursor]) != "" {
+		responses = "  [!] Acknowledge"
+	}
 	if m.cursor < len(m.sessions) && m.sessions[m.cursor].CanRespond() &&
 		(m.sessions[m.cursor].Status == monitor.StatusPermission || m.sessions[m.cursor].Status == monitor.StatusQuestion) {
-		responses = "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
+		responses += "  [y] Approve/Yes  [a] Approve for session  [n] Deny/No"
 	}
 	return styleHelp.Render("[↑↓/jk] Navigate  [enter] Go to pane" + responses + "  [c] Launch  [R] Rename  [x] Kill pane  [r] Refresh  [g] Git review  [W] Worktree  [f] Filter  [/] Search  [i] Compose  [?] Help  [ctrl+k] Palette  [q] Quit")
 }
