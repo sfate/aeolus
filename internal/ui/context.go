@@ -194,7 +194,7 @@ func (m Model) composerDirectory() string {
 		source = m.sessions
 	}
 	for _, s := range source {
-		if s.Pane.PaneID == m.composer.paneID && s.Provider == m.composer.provider {
+		if s.Pane.PaneID == m.composer.paneID && s.Provider == m.composer.provider && s.Kind == m.composer.kind {
 			return s.Pane.CurrentPath
 		}
 	}

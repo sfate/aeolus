@@ -120,6 +120,9 @@ func statusIcon(s monitor.Status) string {
 // sessionLabel builds the display label for a session.
 func sessionLabel(s monitor.Session) string {
 	name := fmt.Sprintf("[%s] %s/%s", s.Provider, s.Pane.SessionName, s.Pane.WindowName)
+	if s.Kind == monitor.SessionShell {
+		name = fmt.Sprintf("[Shell] %s/%s", s.Pane.SessionName, s.Pane.WindowName)
+	}
 	if len(name) > 20 {
 		name = name[:19] + "…"
 	}
@@ -635,6 +638,9 @@ func (m *Model) contentPaneText() string {
 	}
 
 	if s.Status == monitor.StatusUnknown {
+		if s.Kind == monitor.SessionShell {
+			return "Managed shell. Command status is unavailable without explicit shell integration.\n\n" + tailLines(s.Content, 50)
+		}
 		return fmt.Sprintf("%s activity is unknown. Open the pane to inspect or respond.\n\n%s", s.Provider, tailLines(s.Content, 50))
 	}
 

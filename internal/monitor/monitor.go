@@ -61,8 +61,17 @@ type QuestionRequest struct {
 	RawText string // full captured context
 }
 
-// Session represents a tmux pane and its detected agent state.
+// SessionKind distinguishes managed shells from detected agent sessions.
+type SessionKind int
+
+const (
+	SessionAgent SessionKind = iota
+	SessionShell
+)
+
+// Session represents a tmux pane and its detected activity state.
 type Session struct {
+	Kind      SessionKind
 	Provider  Provider
 	Pane      tmux.Pane
 	Status    Status
@@ -448,8 +457,11 @@ func detectSession(backend PaneSource, pane tmux.Pane, procs []processInfo) Sess
 
 	session.Provider = paneProvider(pane.PID, procs, pane.CurrentCommand)
 	if session.Provider == ProviderUnknown {
-		session.Status = StatusNoClaud
-		return session
+		if !pane.Shell {
+			session.Status = StatusNoClaud
+			return session
+		}
+		session.Kind = SessionShell
 	}
 
 	content, err := backend.CapturePane(pane.PaneID, 50)
@@ -496,7 +508,7 @@ func (m *Monitor) Refresh(panes []tmux.Pane) []Session {
 	// Keep detected providers, including unsupported or unreadable activity states.
 	sorted := make([]Session, 0, len(sessions))
 	for _, s := range sessions {
-		if s.Provider != ProviderUnknown {
+		if s.Provider != ProviderUnknown || s.Kind == SessionShell {
 			sorted = append(sorted, s)
 		}
 	}
