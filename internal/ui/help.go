@@ -122,7 +122,7 @@ Git review
 Local tmux layouts
 Open with the command palette from a selected shell session
 [N] Create versioned JSON  [Enter] Preview  [type] Search
-[Ctrl+S] Save locally; layouts do not launch in this workflow
+[l] Request layout launch; confirm with y, cancel with n/Esc
 
 Local notebooks
 Open with the command palette from a selected shell session

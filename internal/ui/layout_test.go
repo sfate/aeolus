@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
+	layoutstore "github.com/sfate/aeolus/internal/layouts"
 	"github.com/sfate/aeolus/internal/monitor"
 	notebookstore "github.com/sfate/aeolus/internal/notebooks"
 	"github.com/sfate/aeolus/internal/shellblocks"
@@ -32,7 +33,7 @@ func assertFits(t *testing.T, text string, width, height int) {
 
 func TestLayoutBoundsAcrossModes(t *testing.T) {
 	for _, size := range [][2]int{{1, 1}, {12, 5}, {24, 12}, {40, 20}, {79, 24}, {80, 24}, {120, 40}} {
-		for _, mode := range []string{"dashboard", "permission", "question", "empty", "error", "missing", "launch", "rename", "composer", "attach", "filters", "review", "search", "local-search", "blocks", "notebooks"} {
+		for _, mode := range []string{"dashboard", "permission", "question", "empty", "error", "missing", "launch", "rename", "composer", "attach", "filters", "review", "search", "local-search", "blocks", "notebooks", "layouts", "layout-confirm", "layout-notice"} {
 			t.Run(fmt.Sprintf("%s/%dx%d", mode, size[0], size[1]), func(t *testing.T) {
 				m := NewModel()
 				s := testSession("%1")
@@ -79,6 +80,10 @@ func TestLayoutBoundsAcrossModes(t *testing.T) {
 					m.localSearch = localSearchState{active: true, query: strings.Repeat("界", 80), results: []localSearchResult{{kind: localPrompt, name: "Unicode", preview: strings.Repeat("界", 80)}}}
 				case "notebooks":
 					m.notebooks = notebookLibrary{active: true, viewing: true, document: 0, command: 0, documents: []notebookstore.Document{{Title: "Runbook", Blocks: []notebookstore.Block{{Kind: notebookstore.Markdown, Content: strings.Repeat("# heading\n", 50)}, {Kind: notebookstore.Shell, Content: "echo run"}}}}}
+				case "layouts", "layout-confirm":
+					m.layouts = layoutLibrary{active: true, viewing: true, confirmRun: mode == "layout-confirm", preview: 0, layouts: []layoutstore.Layout{{Name: "Review", Directory: "/project/" + strings.Repeat("界", 40), Windows: []layoutstore.Window{{Name: "Code", Panes: []layoutstore.Pane{{Type: layoutstore.Agent, Provider: "codex"}, {Type: layoutstore.Shell, Split: layoutstore.Vertical}}}}}}}
+				case "layout-notice":
+					m.layoutNotice = "Layout partial: " + strings.Repeat("pane", 80)
 				case "blocks":
 					m.blocks = blockBrowser{
 						active: true, paneID: "%1", captureID: testCaptureID,
