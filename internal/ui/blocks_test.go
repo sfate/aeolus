@@ -3,11 +3,13 @@ package ui
 import (
 	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/sfate/aeolus/internal/bookmarks"
 	"github.com/sfate/aeolus/internal/history"
 	"github.com/sfate/aeolus/internal/monitor"
 	"github.com/sfate/aeolus/internal/shellblocks"
@@ -187,3 +189,122 @@ func TestCaptureMustBeExplicitAndRequiresSupportedBackend(t *testing.T) {
 }
 
 func intPtr(value int) *int { return &value }
+
+func TestBlockCopyActionsCopyCommandAndPlainOutputIndependently(t *testing.T) {
+	m := NewModelWithBackend(&fakeBackend{}, &fakeMonitor{})
+	m.width, m.height = 120, 40
+	s := capturedSession("%2", testCaptureID)
+	m.sessions, m.allSessions = []monitor.Session{s}, []monitor.Session{s}
+	m.blockRead = func(string) ([]shellblocks.Block, error) {
+		return []shellblocks.Block{{ID: 1, Command: "printf secret", Output: []byte("\x1b[31mplain output\x1b[0m\n")}}, nil
+	}
+	var copied []string
+	m.blockCopy = func(text string) error {
+		copied = append(copied, text)
+		return nil
+	}
+	m, cmd := updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'B'}})
+	m, _ = updateModel(t, m, cmd())
+	m, cmd = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	if cmd == nil {
+		t.Fatal("command copy did not start")
+	}
+	m, _ = updateModel(t, m, cmd())
+	m, cmd = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	if cmd == nil {
+		t.Fatal("output copy did not start")
+	}
+	m, _ = updateModel(t, m, cmd())
+	if len(copied) != 2 || copied[0] != "printf secret" || copied[1] != "plain output\n" || !strings.Contains(m.blocksView(), "Copied output to clipboard") {
+		t.Fatalf("clipboard content or notice mismatch: %#v %q", copied, m.blocksView())
+	}
+}
+
+func TestBlockCopyUnavailableClipboardShowsActionableNotice(t *testing.T) {
+	m := NewModelWithBackend(&fakeBackend{}, &fakeMonitor{})
+	s := capturedSession("%2", testCaptureID)
+	m.sessions, m.allSessions = []monitor.Session{s}, []monitor.Session{s}
+	m.blockRead = func(string) ([]shellblocks.Block, error) {
+		return []shellblocks.Block{{ID: 1, Command: "echo unavailable"}}, nil
+	}
+	m.blockCopy = func(string) error { return errors.New("no supported clipboard utility found") }
+	m, cmd := updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'B'}})
+	m, _ = updateModel(t, m, cmd())
+	m, cmd = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	m, _ = updateModel(t, m, cmd())
+	if !strings.Contains(m.blocksView(), "Clipboard unavailable") || !strings.Contains(m.blocksView(), "no supported clipboard utility") {
+		t.Fatal("unavailable clipboard error was hidden")
+	}
+}
+
+func TestBlockBookmarkAndFindOnlyBookmarkedBlocks(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	m := NewModelWithBackend(&fakeBackend{}, &fakeMonitor{})
+	m.width, m.height = 120, 40
+	s := capturedSession("%2", testCaptureID)
+	m.sessions, m.allSessions = []monitor.Session{s}, []monitor.Session{s}
+	m.blockRead = func(string) ([]shellblocks.Block, error) {
+		return []shellblocks.Block{{ID: 1, Command: "first"}, {ID: 2, Command: "second"}}, nil
+	}
+	m, cmd := updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'B'}})
+	m, _ = updateModel(t, m, cmd())
+	m, cmd = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	if cmd == nil || !m.blocks.bookmarkSaving {
+		t.Fatal("bookmark save did not start")
+	}
+	m, _ = updateModel(t, m, cmd())
+	if !m.blocks.bookmarked[2] {
+		t.Fatal("selected block was not bookmarked")
+	}
+	bookmarkPath, _ := bookmarks.DefaultPath()
+	stored, err := os.ReadFile(bookmarkPath)
+	if err != nil || strings.Contains(string(stored), "first") || strings.Contains(string(stored), "second") {
+		t.Fatalf("bookmark index copied command content: %s, %v", stored, err)
+	}
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	visible := m.visibleBlocks()
+	if !m.blocks.bookmarkOnly || len(visible) != 1 || visible[0].ID != 2 || !strings.Contains(m.blocksView(), "second") || strings.Contains(m.blocksView(), "first") {
+		t.Fatalf("bookmark filter failed: %#v %s", visible, m.blocksView())
+	}
+	m, cmd = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	m, _ = updateModel(t, m, cmd())
+	if m.blocks.bookmarked[2] || len(m.visibleBlocks()) != 0 {
+		t.Fatal("bookmark removal did not update filtered results")
+	}
+}
+
+func TestBlockCommandInsertsIntoDraftWithoutSending(t *testing.T) {
+	backend := &textBackend{}
+	m := NewModelWithBackend(backend, &fakeMonitor{})
+	s := capturedSession("%2", testCaptureID)
+	m.sessions, m.allSessions = []monitor.Session{s}, []monitor.Session{s}
+	m.blockRead = func(string) ([]shellblocks.Block, error) {
+		return []shellblocks.Block{{ID: 1, Command: "dangerous --secret=value"}}, nil
+	}
+	m, cmd := updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'B'}})
+	m, _ = updateModel(t, m, cmd())
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	if m.blocks.active || !m.composer.active || m.composer.draft != "dangerous --secret=value" || backend.text != "" {
+		t.Fatalf("block did not become a reviewable draft: blocks=%v composer=%+v sent=%q", m.blocks.active, m.composer, backend.text)
+	}
+}
+
+func TestBlockActionsRejectStaleCapture(t *testing.T) {
+	m := NewModelWithBackend(&fakeBackend{}, &fakeMonitor{})
+	s := capturedSession("%2", testCaptureID)
+	m.sessions, m.allSessions = []monitor.Session{s}, []monitor.Session{s}
+	m.blocks = blockBrowser{active: true, paneID: "%2", captureID: testCaptureID, blocks: []shellblocks.Block{{ID: 1, Command: "stale"}}}
+	m.allSessions = []monitor.Session{capturedSession("%2", "")}
+	copies := 0
+	m.blockCopy = func(string) error { copies++; return nil }
+	if cmd := m.copyBlock(m.blocks.blocks[0], "command"); cmd != nil || copies != 0 {
+		t.Fatal("stale capture reached clipboard")
+	}
+	if cmd := m.setBlockBookmark(m.blocks.blocks[0]); cmd != nil {
+		t.Fatal("stale capture started bookmark write")
+	}
+	m.insertCapturedBlock(m.blocks.blocks[0])
+	if m.composer.active || m.blocks.err == nil {
+		t.Fatal("stale command entered a composer draft")
+	}
+}

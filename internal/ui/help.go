@@ -108,6 +108,12 @@ Captured-output search
 [backspace/ctrl+h/delete] Delete text  [ctrl+u] Clear query
 Search reads the latest captured output, not unlimited history
 
+Captured command blocks
+[B] Open an explicitly captured shell's blocks
+[c/o] Copy command/output  [i] Insert command into draft  [m] Bookmark
+[b] Show bookmarked blocks or all blocks  [s] Save completed command to history
+Capture must be enabled at shell launch; captured output can contain secrets
+
 Git review
 [up/down/j/k/pgup/pgdown] Scroll  [r] Reload snapshot
 [ctrl+b/ctrl+f] Page  [ctrl+u/ctrl+d] Half page

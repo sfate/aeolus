@@ -118,6 +118,7 @@ type Model struct {
 	attention         map[string]sessionAttention
 	blocks            blockBrowser
 	blockRead         func(string) ([]shellblocks.Block, error)
+	blockCopy         func(string) error
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -242,6 +243,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case blocksLoadedMsg:
 		m.finishBlocksLoad(msg)
+		return m, nil
+	case blockBookmarkSavedMsg:
+		m.finishBlockBookmark(msg)
+		return m, nil
+	case blockCopiedMsg:
+		m.finishBlockCopy(msg)
 		return m, nil
 
 	case lifecycleMsg:
