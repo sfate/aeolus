@@ -25,6 +25,7 @@ type promptComposer struct {
 	err             error
 	context         contextInput
 	library         promptLibrary
+	workflows       workflowModal
 }
 
 func (m *Model) composerKey(msg tea.KeyMsg) (bool, tea.Cmd) {
@@ -51,6 +52,9 @@ func (m *Model) composerKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 		handled, cmd := m.historyKey(msg)
 		return handled, cmd
 	}
+	if m.composer.workflows.active {
+		return m.workflowKey(msg)
+	}
 	if handled, cmd := m.contextKey(msg); handled {
 		return true, cmd
 	}
@@ -58,6 +62,9 @@ func (m *Model) composerKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 		return true, cmd
 	}
 	if handled, cmd := m.historyKey(msg); handled {
+		return true, cmd
+	}
+	if handled, cmd := m.workflowKey(msg); handled {
 		return true, cmd
 	}
 	c := &m.composer
@@ -168,6 +175,11 @@ func (m *Model) updateComposerViewport() {
 	}
 	if m.history.active {
 		m.viewport.SetContent(m.historyView())
+		m.viewport.GotoTop()
+		return
+	}
+	if m.composer.workflows.active {
+		m.viewport.SetContent(m.workflowView())
 		m.viewport.GotoTop()
 		return
 	}

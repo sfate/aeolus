@@ -140,6 +140,14 @@ Press `s` in the library to save the current draft under a name, then `enter` to
 
 The versioned JSON library lives at `$XDG_DATA_HOME/aeolus/prompts.json`, falling back to `~/.local/share/aeolus/prompts.json`. New directories use mode 0700 and library files use mode 0600. Writes use a lock, reload the current library, and replace it atomically. Busy libraries report an error rather than losing another instance's changes. Corrupt or unsupported files are never silently overwritten. The library allows up to 128 prompts, each with an 80-character name and 64 KiB of valid UTF-8 text; total JSON is limited to 1 MiB. Unknown or duplicate JSON fields, missing/null prompt arrays, duplicate names, and unsupported control characters are rejected. Provider integration configuration remains separate.
 
+## Local command workflows
+
+In an explicit shell session's composer, press `ctrl+w` to open saved workflows. Write a template such as `rg {{pattern}} {{path}}` in the draft, open workflows, press `s`, and enter a unique name to save it. Saving retains the draft. Escape back to the draft, then Escape again to discard it before opening a fresh composer for reuse. Names and templates are saved locally; avoid secrets in saved text.
+
+Select a workflow with arrows or j/k and Enter. Enter each parameter value, using Enter to advance or Tab/Shift+Tab to revisit values. The final Enter inserts the rendered command at the draft cursor for review; templates without parameters insert immediately. Nothing sends automatically. Review the draft and use the normal `ctrl+s` execution step only when ready. Values entered in the parameter form are not persisted.
+
+Placeholders must be standalone unquoted command words, such as `{{path}}`; quoted or concatenated placeholders are rejected. Values are shell-quoted as literals. Use Escape to return from parameter/name entry to the list, then Escape to return to the draft. Ctrl+R reloads and PageUp/PageDown scroll previews. Errors preserve input, duplicate names are rejected, and changed targets block insertion and saving. See [the workflow contract](docs/workflows.md) for storage and syntax limits. Workflows are available only in explicit shell composers.
+
 ## Attach file context
 
 Within the composer, press `ctrl+o`, enter a local file path, and press `enter` to attach it. Relative paths resolve against the original target pane's reported directory; if that directory is unavailable, enter an absolute path. No shell expansion is performed, so use the full home directory path instead of `~`. Press `esc` to return to the draft without attaching.
