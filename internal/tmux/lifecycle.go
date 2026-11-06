@@ -72,6 +72,10 @@ func (c Client) CreateShellSession(directory string) (Pane, error) {
 }
 
 func (c Client) createSession(directory, command string, shell bool) (Pane, error) {
+	return c.createSessionWithCapture(directory, command, shell, "", nil)
+}
+
+func (c Client) createSessionWithCapture(directory, command string, shell bool, captureDirectory string, beforeLaunch func()) (Pane, error) {
 	directory, err := filepath.Abs(directory)
 	if err != nil {
 		return Pane{}, fmt.Errorf("resolve project directory: %w", err)
@@ -105,7 +109,11 @@ func (c Client) createSession(directory, command string, shell bool) (Pane, erro
 	}
 	name := fmt.Sprintf("aeolus-%s-%x", command, nonce)
 	format := "#{pane_id}\t#{session_id}\t#{session_name}\t#{window_index}"
-	args := []string{"new-session", "-d", "-P", "-F", format, "-s", name, "-n", command, "-c", literalFormatArgument(directory), "--", env, executable}
+	args := []string{"new-session", "-d", "-P", "-F", format, "-s", name, "-n", command, "-c", literalFormatArgument(directory)}
+	if captureDirectory != "" {
+		args = append(args, "-e", literalFormatArgument("ZDOTDIR="+captureDirectory))
+	}
+	args = append(args, "--", env, executable)
 	if shell {
 		args = append(args, "-i")
 	} else {
@@ -120,6 +128,9 @@ func (c Client) createSession(directory, command string, shell bool) (Pane, erro
 			}
 			args = append(args, arg)
 		}
+	}
+	if beforeLaunch != nil {
+		beforeLaunch()
 	}
 	out, err := lifecycleOutput(args...)
 	if err != nil {
@@ -139,6 +150,10 @@ func (c Client) createSession(directory, command string, shell bool) (Pane, erro
 		}
 	}
 	return Pane{PaneID: fields[0], SessionID: fields[1], SessionName: fields[2], WindowIndex: index, WindowName: command, CurrentCommand: command, CurrentPath: directory, Shell: shell}, nil
+}
+
+func createSessionWithCapture(directory, command string, shell bool, captureDirectory string, beforeLaunch func()) (Pane, error) {
+	return (Client{}).createSessionWithCapture(directory, command, shell, captureDirectory, beforeLaunch)
 }
 
 // RenameWindow changes the window containing an exact pane ID.

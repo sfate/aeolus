@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-var paneMetadataFields = []string{"pane_id", "pane_index", "window_index", "session_name", "session_id", "pane_current_command", "pane_pid", "pane_width", "pane_height", "window_name", "pane_current_path", "@aeolus-shell"}
+var paneMetadataFields = []string{"pane_id", "pane_index", "window_index", "session_name", "session_id", "pane_current_command", "pane_pid", "pane_width", "pane_height", "window_name", "pane_current_path", "@aeolus-shell", "@aeolus-capture"}
 
 // tmux's n modifier measures bytes. Length framing preserves delimiters, Unicode,
 // control bytes, and trailing spaces without interpreting any field as shell text.
@@ -51,7 +51,7 @@ func parsePanes(data []byte) ([]Pane, error) {
 		if !paneIdentifier.MatchString(fields[0]) || !sessionIdentifier.MatchString(fields[4]) {
 			return nil, fmt.Errorf("invalid tmux pane metadata identifier")
 		}
-		panes = append(panes, Pane{PaneID: fields[0], PaneIndex: numbers[0], WindowIndex: numbers[1], SessionName: fields[3], SessionID: fields[4], CurrentCommand: fields[5], PID: numbers[2], Width: numbers[3], Height: numbers[4], WindowName: fields[9], CurrentPath: fields[10], Shell: fields[11] == "v1"})
+		panes = append(panes, Pane{PaneID: fields[0], PaneIndex: numbers[0], WindowIndex: numbers[1], SessionName: fields[3], SessionID: fields[4], CurrentCommand: fields[5], PID: numbers[2], Width: numbers[3], Height: numbers[4], WindowName: fields[9], CurrentPath: fields[10], Shell: fields[11] == "v1", CaptureID: fields[12]})
 	}
 	return panes, nil
 }
