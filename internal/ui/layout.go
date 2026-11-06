@@ -48,7 +48,10 @@ func (m *Model) resizeViewport() {
 
 func (m Model) layoutFooter() string {
 	if m.width >= 80 {
-		return m.footer()
+		if m.blocks.active || m.composer.active || m.filters.editing || m.search.active() {
+			return m.footer()
+		}
+		return m.dashboardFooter()
 	}
 	if m.composer.active {
 		if m.composer.context.active {
@@ -62,7 +65,17 @@ func (m Model) layoutFooter() string {
 	if m.search.active() {
 		return m.searchHelp()
 	}
-	return "[j/k] [enter] [c] [q]"
+	if m.width < 50 {
+		return m.shortcutHelp("[↑↓/jk] Move  [?] Help")
+	}
+	return m.shortcutHelp("[↑↓/jk] Navigate  [enter] Open  [?] Help")
+}
+
+func (m Model) dashboardFooter() string {
+	if m.width < 100 {
+		return m.theme.styleHelp.Render(m.shortcutHelp("[↑↓/jk] Navigate  [enter] Open  [/] Search  [?] Help"))
+	}
+	return m.theme.styleHelp.Render(m.shortcutHelp("[↑↓/jk] Navigate  [enter] Open  [c] Launch  [/] Search  [r] Refresh  [?] Help  [ctrl+k] Palette"))
 }
 
 // focusInput keeps the insertion cursor visible while retaining the original value.

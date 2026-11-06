@@ -120,6 +120,28 @@ func TestNarrowLayoutAndResizePreserveSelection(t *testing.T) {
 	}
 }
 
+func TestDashboardHierarchyAndResponsiveShortcuts(t *testing.T) {
+	for _, size := range []struct {
+		width int
+		want  []string
+	}{{40, []string{"AEOLUS", "Move", "Help"}}, {80, []string{"AEOLUS", "Navigate", "Search", "Help"}}, {120, []string{"AEOLUS", "TERMINAL SESSION DASHBOARD", "Launch", "Palette"}}} {
+		m := NewModel()
+		m.sessions = []monitor.Session{testSession("%1")}
+		m.keybindings = map[string]string{"next": "n"}
+		m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: size.width, Height: 24})
+		view := ansi.Strip(m.View())
+		for _, want := range size.want {
+			if !strings.Contains(view, want) {
+				t.Errorf("%dx24 dashboard missing %q: %s", size.width, want, view)
+			}
+		}
+		if !strings.Contains(view, "↓/n") {
+			t.Errorf("%dx24 dashboard omitted custom navigation binding: %s", size.width, view)
+		}
+		assertFits(t, m.View(), size.width, 24)
+	}
+}
+
 func TestEditingCursorsStayVisibleOnNarrowScreens(t *testing.T) {
 	m := NewModel()
 	m.sessions = []monitor.Session{testSession("%1")}
