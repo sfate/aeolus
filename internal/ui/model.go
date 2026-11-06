@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/sfate/aeolus/internal/config"
+	"github.com/sfate/aeolus/internal/history"
 	"github.com/sfate/aeolus/internal/monitor"
 	"github.com/sfate/aeolus/internal/preferences"
 	"github.com/sfate/aeolus/internal/shellblocks"
@@ -109,6 +110,12 @@ type Model struct {
 	workflowIO        workflowOperations
 	blocks            blockBrowser
 	blockRead         func(string) ([]shellblocks.Block, error)
+	history           historyLibrary
+	historyRequest    uint64
+	historyLoad       func() ([]history.Entry, error)
+	historyWrite      func(history.Entry) (int, error)
+	historySaving     bool
+	historyNotice     string
 }
 
 // NewModel creates a new Model with sensible defaults.
@@ -218,6 +225,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case historyLoadedMsg:
+		m.finishHistoryLoad(msg)
+		return m, nil
+	case historySavedMsg:
+		m.historySaving = false
+		if msg.err != nil {
+			m.historyNotice = fmt.Sprintf("Cannot save command: %v", msg.err)
+		} else {
+			m.historyNotice = fmt.Sprintf("Command saved to history; %d oldest entries evicted.", msg.evicted)
+		}
+		return m, nil
 	case gitReviewMsg:
 		m.finishGitReview(msg)
 		return m, nil
@@ -709,6 +727,9 @@ func (m Model) screenView() string {
 	header += "\n" + fitLine(m.theme.styleHelp.Render(m.filterSummary()), m.width)
 	if m.preferenceNotice != "" {
 		header += "\n" + safeReviewText(m.preferenceNotice)
+	}
+	if m.historyNotice != "" {
+		header += "\n" + safeReviewText(m.historyNotice)
 	}
 
 	if m.worktree.active {
