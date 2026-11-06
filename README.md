@@ -168,7 +168,7 @@ While editing, navigation and action keys become query text; `esc` restores the 
 
 ## Provider detection
 
-Detection uses executable names and known npm entry points in the pane process tree. It does not treat agent names in prompts, command arguments, or captured output as evidence of an agent. Custom wrapper names and process paths containing spaces may not be detected; use a standard CLI entry point. Codex and Gemini do not inherit Claude output parsing or approval keys. A detected agent with unreadable output remains listed with unknown activity.
+Detection uses executable names and known npm entry points in the pane process tree. It does not treat agent names in prompts, command arguments, or captured output as evidence of an agent. Custom wrapper names and process paths containing spaces may not be detected; use a standard CLI entry point. Codex activity is reported as Working only when its native terminal status row is visible; other Codex states remain Unknown. Gemini does not inherit Claude output parsing or approval keys. No Codex or Gemini approval actions are inferred. A detected agent with unreadable output remains listed with unknown activity.
 
 ## License
 

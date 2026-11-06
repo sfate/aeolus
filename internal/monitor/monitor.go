@@ -24,8 +24,8 @@ type Status int
 const (
 	StatusUnknown    Status = iota
 	StatusNoClaud           // pane exists but no claude running
-	StatusIdle              // claude running, idle
-	StatusWorking           // claude actively processing/outputting
+	StatusIdle              // Claude running, idle
+	StatusWorking           // Supported provider actively processing/outputting
 	StatusPermission        // waiting for permission approval
 	StatusQuestion          // claude asked a yes/no question
 )
