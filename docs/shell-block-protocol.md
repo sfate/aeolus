@@ -18,7 +18,7 @@ Start and finish wall times come from the explicit hook records. Duration uses t
 
 ## Privacy and future integration
 
-The parser has no filesystem persistence. Capture initiation must require explicit TUI opt-in and explain that command text and terminal output can contain secrets. Persistent history must require an explicit user save, rather than automatically retaining captured commands or output.
+The parser has no filesystem persistence. Capture initiation requires explicit TUI opt-in and explains that command text and terminal output can contain secrets. The TUI block browser copies commands or output only on an explicit action, inserts commands into a draft for review, and bookmarks blocks by capture ID and block ID without duplicating captured text or output. The bookmark index is local, bounded to 256 entries, and stored with private file permissions. A bookmark resolves only while its source capture remains available; capture runtime files are removed when the shell stream closes. Persistent command history still requires an explicit user save.
 
 ## Runtime backend
 
