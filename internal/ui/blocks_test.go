@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/sfate/aeolus/internal/history"
 	"github.com/sfate/aeolus/internal/monitor"
 	"github.com/sfate/aeolus/internal/shellblocks"
 	"github.com/sfate/aeolus/internal/tmux"
@@ -82,6 +84,60 @@ func TestBlockBrowserShowsReadErrors(t *testing.T) {
 	m, _ = updateModel(t, m, cmd())
 	if !strings.Contains(m.viewport.View(), "snapshot missing") {
 		t.Fatal("capture read error not shown")
+	}
+}
+
+func TestBlockHistorySaveIsExplicitAndExcludesOutput(t *testing.T) {
+	m := NewModelWithBackend(&fakeBackend{}, &fakeMonitor{})
+	m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: 160, Height: 40})
+	s := capturedSession("%2", testCaptureID)
+	m.sessions, m.allSessions = []monitor.Session{s}, []monitor.Session{s}
+	code := 7
+	m.blockRead = func(string) ([]shellblocks.Block, error) {
+		return []shellblocks.Block{{ID: 1, Command: "dangerous --secret=value", Directory: "/tmp/project", ExitCode: &code, Duration: 2 * time.Second, StartedAt: time.Now(), Output: []byte("private terminal output")}}, nil
+	}
+	saved := []history.Entry{}
+	m.historyWrite = func(entry history.Entry) (int, error) {
+		saved = append(saved, entry)
+		return 0, nil
+	}
+	if len(saved) != 0 {
+		t.Fatal("loading blocks saved history automatically")
+	}
+	m, cmd := updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'B'}})
+	m, _ = updateModel(t, m, cmd())
+	if len(saved) != 0 {
+		t.Fatal("opening the block browser saved history automatically")
+	}
+	m, cmd = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if cmd == nil || len(saved) != 0 || !m.historySaving {
+		t.Fatal("explicit save did not schedule one history write")
+	}
+	m, _ = updateModel(t, m, cmd())
+	if len(saved) != 1 || saved[0].Command != "dangerous --secret=value" || saved[0].Directory != "/tmp/project" || saved[0].ExitCode == nil || *saved[0].ExitCode != code || saved[0].Duration != 2*time.Second || saved[0].SavedAt.IsZero() {
+		t.Fatalf("saved history metadata mismatch: %#v", saved)
+	}
+	encoded, err := json.Marshal(saved[0])
+	if err != nil || strings.Contains(string(encoded), "private terminal output") || !strings.Contains(m.historyNotice, "saved") {
+		t.Fatalf("save result or output exclusion mismatch: history=%s notice=%q err=%v", encoded, m.historyNotice, err)
+	}
+}
+
+func TestIncompleteBlockCannotBeSaved(t *testing.T) {
+	m := NewModelWithBackend(&fakeBackend{}, &fakeMonitor{})
+	m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: 160, Height: 40})
+	s := capturedSession("%2", testCaptureID)
+	m.sessions, m.allSessions = []monitor.Session{s}, []monitor.Session{s}
+	m.blockRead = func(string) ([]shellblocks.Block, error) {
+		return []shellblocks.Block{{ID: 1, Command: "still-running", Directory: "/tmp", StartedAt: time.Now(), Incomplete: true}}, nil
+	}
+	writes := 0
+	m.historyWrite = func(history.Entry) (int, error) { writes++; return 0, nil }
+	m, cmd := updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'B'}})
+	m, _ = updateModel(t, m, cmd())
+	m, cmd = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if cmd != nil || writes != 0 || m.blocks.err == nil {
+		t.Fatal("incomplete command was saved")
 	}
 }
 
