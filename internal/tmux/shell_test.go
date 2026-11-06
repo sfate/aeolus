@@ -23,11 +23,15 @@ func TestCreateShellSessionWithRealTmux(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(socketDir) })
 	socket := filepath.Join(socketDir, "tmux.sock")
-	t.Setenv("ZDOTDIR", t.TempDir())
+	zdotdir := t.TempDir()
+	t.Setenv("ZDOTDIR", zdotdir)
 	if out, err := exec.Command(binary, "-S", socket, "-f", "/dev/null", "new-session", "-d", "--", "sleep", "30").CombinedOutput(); err != nil {
 		t.Fatalf("isolated server: %v %s", err, out)
 	}
-	t.Cleanup(func() { _ = exec.Command(binary, "-S", socket, "kill-server").Run() })
+	t.Cleanup(func() {
+		_ = exec.Command(binary, "-S", socket, "kill-server").Run()
+		_ = os.RemoveAll(zdotdir)
+	})
 	t.Setenv("TMUX", socket+",0,0")
 	directory, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
