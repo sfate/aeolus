@@ -190,17 +190,17 @@ func (m *Model) updateComposerViewport() {
 	}
 	c := m.composer
 	r := []rune(c.draft)
-	header := fmt.Sprintf("Compose for pane %s\n", c.paneID)
+	header := m.theme.screenTitle("Compose") + "\n" + m.theme.metadata("Target pane "+c.paneID) + "\n"
 	if c.kind == monitor.SessionShell {
-		header += "Shell command: Ctrl+S sends text and Enter, which executes commands.\n"
+		header += m.theme.sectionLabel("Shell command · Ctrl+S sends text and Enter, which executes commands") + "\n"
 	}
 	if c.pending {
 		header += "Sending...\n"
 	} else if !m.composerTargetAvailable() {
-		header += "Target unavailable. Draft retained; Esc cancels.\n"
+		header += m.theme.errorText("Target unavailable. Draft retained; Esc cancels.") + "\n"
 	}
 	if c.err != nil {
-		header += "Error: " + c.err.Error() + "\n"
+		header += m.theme.errorText("Error: "+c.err.Error()) + "\n"
 	}
 	header += "\n"
 	before := ansi.Hardwrap(header+string(r[:c.position])+"▏", max(1, m.viewport.Width-1), true)

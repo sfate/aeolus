@@ -198,7 +198,7 @@ func (m *Model) libraryResult(msg libraryResultMsg) {
 func (m Model) libraryView() string {
 	a := m.composer.library
 	var b strings.Builder
-	b.WriteString("Reusable prompts - insert for review; nothing sends automatically\n")
+	b.WriteString(m.theme.screenTitle("Reusable prompts") + "\n" + m.theme.metadata("Insert for review; nothing sends automatically") + "\n")
 	if a.pending {
 		if a.saving {
 			b.WriteString("Saving...\n")
@@ -207,7 +207,7 @@ func (m Model) libraryView() string {
 		}
 	}
 	if a.err != nil {
-		fmt.Fprintf(&b, "Error: %q\n", a.err.Error())
+		fmt.Fprintf(&b, "%s\n", m.theme.errorText(fmt.Sprintf("Error: %q", a.err.Error())))
 	}
 	if a.naming {
 		r := []rune(a.name)
@@ -223,10 +223,14 @@ func (m Model) libraryView() string {
 		if i == a.selected {
 			marker = "> "
 		}
-		fmt.Fprintf(&b, "%s%s\n", marker, a.entries[i].Name)
+		if i == a.selected {
+			b.WriteString(m.theme.selectedRow(a.entries[i].Name) + "\n")
+		} else {
+			fmt.Fprintf(&b, "%s%s\n", marker, a.entries[i].Name)
+		}
 	}
 	if a.selected < len(a.entries) {
-		b.WriteString("\nSelected prompt:\n" + a.entries[a.selected].Text)
+		b.WriteString("\n" + m.theme.sectionLabel("Selected prompt") + "\n" + a.entries[a.selected].Text)
 	}
 	return b.String()
 }

@@ -148,6 +148,7 @@ func reviewSnapshotText(snapshot gitreview.Snapshot) string {
 }
 
 func (m Model) gitReviewView() string {
-	title := fmt.Sprintf("Git review - pane %s - directory %s\n", m.review.paneID, strconv.Quote(m.review.directory))
-	return fitLine(safeReviewText(strings.TrimSuffix(title, "\n")), m.width) + "\n\n" + m.review.viewport.View() + "\n\n[r] Reload snapshot  [↑↓/j/k/pgup/pgdown] Scroll  [esc] Close"
+	title := m.theme.screenTitle("Git review") + "\n" + m.theme.metadata(safeReviewText(fmt.Sprintf("Pane %s · Directory %s", m.review.paneID, strconv.Quote(m.review.directory))))
+	footer := m.theme.primaryHint("[r] Reload snapshot  [↑↓/j/k/pgup/pgdown] Scroll  [esc] Close")
+	return fitLine(title, m.width) + "\n\n" + m.review.viewport.View() + "\n\n" + footer
 }

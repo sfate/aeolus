@@ -151,5 +151,5 @@ In text inputs, ? remains ordinary text
 }
 
 func (m Model) helpView() string {
-	return "Keyboard help\n\n" + m.help.viewport.View() + "\n\n[↑↓/j/k/pgup/pgdown/home/end] Scroll  [esc] Close"
+	return m.theme.screenTitle("Keyboard help") + "\n\n" + m.help.viewport.View() + "\n\n" + m.theme.primaryHint("[↑↓/j/k/pgup/pgdown/home/end] Scroll  [esc] Close")
 }

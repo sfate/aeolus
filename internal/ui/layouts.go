@@ -458,9 +458,9 @@ func (m Model) layoutBody() string {
 	if l.viewing && l.preview >= 0 && l.preview < len(l.layouts) {
 		item := l.layouts[l.preview]
 		var b strings.Builder
-		fmt.Fprintf(&b, "%s\nDirectory: %s\n\n", item.Name, item.Directory)
+		fmt.Fprintf(&b, "%s\n%s %s\n\n", m.theme.screenTitle(item.Name), m.theme.metadata("Directory:"), m.theme.metadata(item.Directory))
 		for _, w := range item.Windows {
-			fmt.Fprintf(&b, "Window: %s\n", w.Name)
+			fmt.Fprintf(&b, "%s\n", m.theme.sectionLabel("Window: "+w.Name))
 			for i, p := range w.Panes {
 				fmt.Fprintf(&b, "  %d. %s", i+1, p.Type)
 				if p.Provider != "" {
@@ -477,14 +477,14 @@ func (m Model) layoutBody() string {
 			b.WriteByte('\n')
 		}
 		if l.err != "" {
-			b.WriteString("\n\n" + safeReviewText(l.err))
+			b.WriteString("\n\n" + m.theme.errorText(safeReviewText(l.err)))
 		}
 		if l.launching {
 			b.WriteString("\n\nCreating layout. Keep Aeolus open until pane results are reported.")
 		} else if l.confirmRun {
-			b.WriteString("\n\nCONFIRM LAYOUT CREATION\nThis creates a detached tmux session and launches the configured agents and shells.\n\nPress y to create it, or n/Esc to cancel.")
+			b.WriteString("\n\n" + m.theme.errorText("CONFIRM LAYOUT CREATION") + "\n" + m.theme.metadata("This creates a detached tmux session and launches the configured agents and shells.") + "\n\n" + m.theme.primaryHint("Press y to create it, or n/Esc to cancel."))
 		} else {
-			b.WriteString("\n\nPress l to launch this layout. A confirmation is required before tmux changes.")
+			b.WriteString("\n\n" + m.theme.primaryHint("Press l to launch this layout. A confirmation is required before tmux changes."))
 		}
 		return b.String()
 	}
@@ -496,17 +496,17 @@ func (m Model) layoutBody() string {
 		if l.err == "Preview only - launch is handled in a later workflow." {
 			label = "Layout preview (read only)"
 		}
-		body := label + "\nEdit a version 1 JSON layout. Agent providers: claude, codex, gemini. First pane in each window has no split.\n\n" + source
+		body := m.theme.screenTitle(label) + "\n" + m.theme.metadata("Edit a version 1 JSON layout. Agent providers: claude, codex, gemini. First pane in each window has no split.") + "\n\n" + source
 		if l.err != "" {
-			body = "Error: " + safeReviewText(l.err) + "\n\n" + body
+			body = m.theme.errorText("Error: "+safeReviewText(l.err)) + "\n\n" + body
 		}
 		return body
 	}
 	matches := l.matches()
 	var b strings.Builder
-	fmt.Fprintf(&b, "Local tmux layouts (%d)\nSearch: %s\n\n", len(matches), l.query)
+	fmt.Fprintf(&b, "%s\n%s %s\n\n", m.theme.sectionLabel(fmt.Sprintf("Saved layouts · %d", len(matches))), m.theme.sectionLabel("Search"), l.query)
 	if l.err != "" {
-		fmt.Fprintf(&b, "%s\n\n", safeReviewText(l.err))
+		fmt.Fprintf(&b, "%s\n\n", m.theme.errorText(safeReviewText(l.err)))
 	}
 	if len(matches) == 0 {
 		b.WriteString("No saved layouts. Press N to create one.\n")
@@ -521,12 +521,18 @@ func (m Model) layoutBody() string {
 		for _, w := range item.Windows {
 			panes += len(w.Panes)
 		}
-		fmt.Fprintf(&b, "%s%s  %d windows, %d panes\n  %s\n", mark, item.Name, len(item.Windows), panes, ansi.Truncate(safeReviewText(item.Directory), max(1, m.viewport.Width-4), "…"))
+		label := fmt.Sprintf("%s  %d windows, %d panes", item.Name, len(item.Windows), panes)
+		if i == l.selected {
+			b.WriteString(m.theme.selectedRow(label) + "\n")
+		} else {
+			fmt.Fprintf(&b, "%s%s\n", mark, label)
+		}
+		fmt.Fprintf(&b, "  %s\n", m.theme.metadata(ansi.Truncate(safeReviewText(item.Directory), max(1, m.viewport.Width-4), "…")))
 	}
 	return b.String()
 }
 func (m Model) layoutView() string {
-	return fitScreen(m.theme.styleHeader.Render(" LOCAL TMUX LAYOUTS ")+"\n\n"+m.theme.renderer.NewStyle().Render(m.viewport.View())+"\n"+m.tmuxLayoutFooter(), m.width, m.height)
+	return fitScreenWithFooter(m.theme.screenTitle("Local tmux layouts")+"\n\n"+m.theme.renderer.NewStyle().Render(m.viewport.View())+"\n"+m.theme.primaryHint(m.tmuxLayoutFooter()), m.width, m.height)
 }
 func (m Model) tmuxLayoutFooter() string {
 	if m.layouts.saving {

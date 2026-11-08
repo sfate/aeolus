@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -34,16 +35,22 @@ func (f filterChoice) matches(s monitor.Session) bool {
 	return providerMatches && (f.status == 0 || s.Status == filterStatuses[f.status]) && strings.Contains(s.Pane.CurrentPath, f.directory)
 }
 func (f filterChoice) description() string {
-	provider, status := "All", "All"
+	parts := make([]string, 0, 3)
 	if f.provider == len(filterProviders) {
-		provider = "Shell"
+		parts = append(parts, "Provider: Shell")
 	} else if f.provider != 0 {
-		provider = filterProviders[f.provider].String()
+		parts = append(parts, "Provider: "+filterProviders[f.provider].String())
 	}
 	if f.status != 0 {
-		status = filterStatuses[f.status].String()
+		parts = append(parts, "Status: "+filterStatuses[f.status].String())
 	}
-	return fmt.Sprintf("Provider: %s  Status: %s  Working dir contains: %q", provider, status, f.directory)
+	if f.directory != "" {
+		parts = append(parts, fmt.Sprintf("Directory contains: %q", f.directory))
+	}
+	if len(parts) == 0 {
+		return "All sessions"
+	}
+	return strings.Join(parts, "  ·  ")
 }
 
 func (m Model) selectedPaneID() string {
@@ -145,7 +152,10 @@ func (m Model) filterSummary() string {
 	}
 	summary := m.attentionSummary() + fmt.Sprintf("%s  Sessions: %d/%d", m.filters.applied.description(), len(m.sessions), total)
 	if m.cursor >= 0 && m.cursor < len(m.sessions) {
-		summary += fmt.Sprintf("  Selected dir: %q", m.sessions[m.cursor].Pane.CurrentPath)
+		path := m.sessions[m.cursor].Pane.CurrentPath
+		if path != "" {
+			summary += "  ·  Selected: " + filepath.Base(path)
+		}
 	}
 	return summary
 }

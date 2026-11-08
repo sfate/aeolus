@@ -518,14 +518,14 @@ func (m Model) notebookBody() string {
 		if n.editingTitle {
 			runes := []rune(n.title)
 			query := string(runes[:n.position]) + "▏" + string(runes[n.position:])
-			body = "Create local notebook\n\nTitle: " + query + "\n\nNotebook title is limited to 80 characters."
+			body = m.theme.sectionLabel("Create local notebook") + "\n\nTitle: " + query + "\n\n" + m.theme.metadata("Notebook title is limited to 80 characters.")
 		} else {
 			runes := []rune(n.source)
 			content := string(runes[:n.position]) + "▏" + string(runes[n.position:])
 			body = "Create local notebook: " + n.title + "\n\nWrite Markdown notes and optional runnable blocks inside fenced ```sh blocks.\nSaving stores this document locally; it does not run commands.\n\n" + content
 		}
 		if n.err != "" {
-			body = "Error: " + safeReviewText(n.err) + "\n\n" + body
+			body = m.theme.errorText("Error: "+safeReviewText(n.err)) + "\n\n" + body
 		}
 		return body
 	}
@@ -533,7 +533,7 @@ func (m Model) notebookBody() string {
 		return m.notebookDocumentBody(n.documents[n.document])
 	}
 	if n.err != "" {
-		return "Error: " + safeReviewText(n.err) + "\n\n" + m.notebookListBody()
+		return m.theme.errorText("Error: "+safeReviewText(n.err)) + "\n\n" + m.notebookListBody()
 	}
 	return m.notebookListBody()
 }
@@ -542,9 +542,9 @@ func (m Model) notebookListBody() string {
 	n := m.notebooks
 	matches := n.matches()
 	var text strings.Builder
-	fmt.Fprintf(&text, "Local notebooks (%d)\nSearch: %s\n\n", len(matches), n.query)
+	fmt.Fprintf(&text, "%s\n%s %s\n\n", m.theme.sectionLabel(fmt.Sprintf("Saved notebooks · %d", len(matches))), m.theme.sectionLabel("Search"), n.query)
 	if n.notice != "" {
-		fmt.Fprintf(&text, "%s\n\n", n.notice)
+		fmt.Fprintf(&text, "%s\n\n", m.theme.primaryHint(n.notice))
 	}
 	if len(matches) == 0 {
 		text.WriteString("No matching notebooks. Press N to create one.\n")
@@ -565,7 +565,13 @@ func (m Model) notebookListBody() string {
 		if len(document.Blocks) > 0 {
 			preview = strings.ReplaceAll(document.Blocks[0].Content, "\n", " ")
 		}
-		fmt.Fprintf(&text, "%s%s  %d sections, %d runnable blocks\n  %s\n", marker, document.Title, len(document.Blocks), commands, ansi.Truncate(safeReviewText(preview), max(1, m.viewport.Width-4), "…"))
+		label := fmt.Sprintf("%s  %d sections, %d runnable blocks", document.Title, len(document.Blocks), commands)
+		if i == n.selected {
+			text.WriteString(m.theme.selectedRow(label) + "\n")
+		} else {
+			fmt.Fprintf(&text, "%s%s\n", marker, label)
+		}
+		fmt.Fprintf(&text, "  %s\n", m.theme.metadata(ansi.Truncate(safeReviewText(preview), max(1, m.viewport.Width-4), "…")))
 	}
 	return text.String()
 }
@@ -573,7 +579,7 @@ func (m Model) notebookListBody() string {
 func (m Model) notebookDocumentBody(document store.Document) string {
 	n := m.notebooks
 	var text strings.Builder
-	fmt.Fprintf(&text, "%s\n\n", document.Title)
+	fmt.Fprintf(&text, "%s\n\n", m.theme.screenTitle(document.Title))
 	commands := shellBlockIndexes(document)
 	for index, block := range document.Blocks {
 		if block.Kind == store.Markdown {
@@ -588,11 +594,12 @@ func (m Model) notebookDocumentBody(document store.Document) string {
 				break
 			}
 		}
-		marker := "  "
+		label := fmt.Sprintf("Runnable shell block %d  Press r to review and confirm", commandIndex+1)
 		if commandIndex == n.command {
-			marker = "> "
+			text.WriteString(m.theme.selectedRow(label) + "\n")
+		} else {
+			text.WriteString(m.theme.sectionLabel(label) + "\n")
 		}
-		fmt.Fprintf(&text, "%sRunnable shell block %d - press r to review and confirm\n", marker, commandIndex+1)
 		text.WriteString("```sh\n")
 		text.WriteString(safeReviewText(block.Content))
 		text.WriteString("\n```\n\n")
@@ -603,10 +610,10 @@ func (m Model) notebookDocumentBody(document store.Document) string {
 		text.WriteString("\n\nPress y to run or n/Esc to cancel. The notebook will not change.\n")
 	}
 	if n.err != "" {
-		fmt.Fprintf(&text, "\nError: %s\n", safeReviewText(n.err))
+		fmt.Fprintf(&text, "\n%s\n", m.theme.errorText("Error: "+safeReviewText(n.err)))
 	}
 	if n.notice != "" {
-		fmt.Fprintf(&text, "\n%s\n", safeReviewText(n.notice))
+		fmt.Fprintf(&text, "\n%s\n", m.theme.primaryHint(safeReviewText(n.notice)))
 	}
 	if n.running {
 		text.WriteString("\nSubmitting command...\n")
@@ -624,7 +631,7 @@ func (m Model) renderNotebookMarkdown(markdown string) string {
 		}
 		if strings.HasPrefix(trimmed, "#") {
 			heading := strings.TrimSpace(strings.TrimLeft(trimmed, "#"))
-			rendered.WriteString(m.theme.renderer.NewStyle().Bold(true).Render(heading))
+			rendered.WriteString(m.theme.sectionLabel(heading))
 		} else if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") {
 			rendered.WriteString("• " + strings.TrimSpace(trimmed[2:]))
 		} else {
@@ -636,10 +643,10 @@ func (m Model) renderNotebookMarkdown(markdown string) string {
 }
 
 func (m Model) notebookView() string {
-	header := m.theme.styleHeader.Render(" LOCAL NOTEBOOKS ")
+	header := m.theme.screenTitle("Local notebooks")
 	body := m.theme.renderer.NewStyle().Render(m.viewport.View())
-	footer := m.notebookFooter()
-	return fitScreen(header+"\n\n"+body+"\n"+footer, m.width, m.height)
+	footer := m.theme.primaryHint(m.notebookFooter())
+	return fitScreenWithFooter(header+"\n\n"+body+"\n"+footer, m.width, m.height)
 }
 
 func (m Model) notebookFooter() string {
