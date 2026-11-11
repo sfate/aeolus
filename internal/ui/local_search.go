@@ -298,12 +298,12 @@ func (m Model) localSearchView() string {
 	if m.composer.kind == monitor.SessionShell {
 		scope = "Search saved commands, workflows, and prompts. Selection inserts into the draft; it never executes or sends."
 	}
-	fmt.Fprintf(&text, "Local library search\n%s\n\nSearch: %s▏\n", scope, ansi.Truncate(m.localSearch.query, max(4, m.width-12), "…"))
+	fmt.Fprintf(&text, "%s\n%s\n\n%s %s▏\n", m.theme.screenTitle("Local library search"), m.theme.metadata(scope), m.theme.sectionLabel("Search"), ansi.Truncate(m.localSearch.query, max(4, m.width-12), "…"))
 	if m.localSearch.loading {
-		text.WriteString("\nLoading local libraries…")
+		text.WriteString("\n\n" + m.theme.metadata("Loading local libraries…"))
 	} else {
 		if m.localSearch.err != "" {
-			fmt.Fprintf(&text, "\n%s\n", m.localSearch.err)
+			fmt.Fprintf(&text, "\n%s\n", m.theme.errorText(safeReviewText(m.localSearch.err)))
 		}
 		matches := m.localSearch.matches()
 		if len(matches) == 0 {
@@ -318,9 +318,15 @@ func (m Model) localSearchView() string {
 				marker = "> "
 			}
 			result := matches[i]
-			fmt.Fprintf(&text, "%s%-8s %s\n  %s\n  %s\n", marker, result.kind, ansi.Truncate(safeReviewText(result.name), max(1, m.width-14), "…"), ansi.Truncate(safeReviewText(result.preview), max(1, m.width-4), "…"), ansi.Truncate(safeReviewText(result.metadata), max(1, m.width-4), "…"))
+			label := fmt.Sprintf("%-8s %s", result.kind, ansi.Truncate(safeReviewText(result.name), max(1, m.width-14), "…"))
+			if i == m.localSearch.selection {
+				text.WriteString(m.theme.selectedRow(label) + "\n")
+			} else {
+				fmt.Fprintf(&text, "%s%s\n", marker, label)
+			}
+			fmt.Fprintf(&text, "  %s\n  %s\n", ansi.Truncate(safeReviewText(result.preview), max(1, m.width-4), "…"), m.theme.metadata(ansi.Truncate(safeReviewText(result.metadata), max(1, m.width-4), "…")))
 		}
 	}
-	text.WriteString("\n[↑↓/ctrl+p/ctrl+n] Select  [enter] Insert for review  [esc] Back")
+	text.WriteString("\n" + m.theme.primaryHint("[↑↓/ctrl+p/ctrl+n] Select  [enter] Insert for review  [esc] Back"))
 	return ansi.Hardwrap(text.String(), max(1, m.width), true)
 }

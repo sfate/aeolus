@@ -253,7 +253,7 @@ func (m Model) lifecycleView() string {
 	form := m.lifecycle
 	input := focusInput(form.text, form.position, max(1, m.width-13))
 	title := "Rename window for pane " + form.paneID
-	details := "Window name: " + input + "\n\nRenames the entire tmux window, including other panes."
+	details := m.theme.sectionLabel("Window name") + " " + input + "\n\n" + m.theme.metadata("Renames the entire tmux window, including other panes.")
 	if form.kind == lifecycleLaunch {
 		title = "Launch session"
 		choice := launchProviders[form.provider].String()
@@ -265,10 +265,10 @@ func (m Model) lifecycleView() string {
 			}
 			choice += "  Capture: " + capture
 		}
-		details = fmt.Sprintf("Session: %s  [tab/shift+tab] Change\nDirectory: %s\n\nCreates a dedicated detached tmux session.", choice, input)
-		details += "\nPreset: " + m.projectPresetLabel() + "  [ctrl+p] Next configured project"
+		details = fmt.Sprintf("%s %s  %s\n%s\n%s\n\n%s", m.theme.sectionLabel("Session"), choice, m.theme.primaryHint("[tab/shift+tab] Change"), m.theme.sectionLabel("Directory"), input, m.theme.metadata("Creates a dedicated detached tmux session."))
+		details += "\n" + m.theme.metadata("Preset: "+m.projectPresetLabel()) + "  " + m.theme.primaryHint("[ctrl+p] Next configured project")
 		if form.shell {
-			details += "\n[ctrl+b] Capture records commands and output; it may contain secrets. [ctrl+b] Toggle."
+			details += "\n" + m.theme.metadata("Capture records commands and output; it may contain secrets.") + " " + m.theme.primaryHint("[ctrl+b] Toggle")
 		}
 	}
 	status := "[enter] Submit  [esc] Cancel"
@@ -278,11 +278,13 @@ func (m Model) lifecycleView() string {
 	if form.busy {
 		status = "Working...  [ctrl+c] Quit"
 	}
-	body := title + "\n\n" + details
+	body := m.theme.screenTitle(title) + "\n\n" + details
 	// Keep submit/cancel instructions visible even when an error is multiline.
 	budget := max(1, m.height-4)
 	if form.err != nil {
-		status = fitLine(strings.ReplaceAll(form.err.Error(), "\n", " "), m.width) + "\n[enter] [esc] Cancel"
+		status = m.theme.errorText(fitLine(strings.ReplaceAll(form.err.Error(), "\n", " "), m.width)) + "\n" + m.theme.primaryHint("[enter] [esc] Cancel")
+	} else {
+		status = m.theme.primaryHint(status)
 	}
 	statusLines := strings.Count(status, "\n") + 1
 	return fitScreen(body, m.width, max(1, budget-statusLines)) + "\n" + status

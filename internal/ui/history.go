@@ -131,12 +131,12 @@ func (m *Model) finishHistoryLoad(msg historyLoadedMsg) {
 
 func (m Model) historyView() string {
 	h := m.history
-	text := "Saved shell command history\n\nSearch: " + ansi.Truncate(h.query, max(4, m.viewport.Width-10), "…") + "▏\n\n"
+	text := m.theme.screenTitle("Saved shell command history") + "\n\n" + m.theme.sectionLabel("Search") + " " + ansi.Truncate(h.query, max(4, m.viewport.Width-10), "…") + "▏\n\n"
 	if h.loading {
 		return text + "Loading... [esc] Back to draft"
 	}
 	if h.err != nil {
-		text += "Error: " + safeReviewText(h.err.Error()) + "\n\n"
+		text += m.theme.errorText("Error: "+safeReviewText(h.err.Error())) + "\n\n"
 	}
 	matches := h.matches()
 	if len(matches) == 0 {
@@ -152,7 +152,12 @@ func (m Model) historyView() string {
 			marker = "> "
 		}
 		command := strings.ReplaceAll(entry.Command, "\n", " ↵ ")
-		text += fmt.Sprintf("%s%s\n", marker, ansi.Truncate(safeReviewText(command), max(1, m.viewport.Width-2), "…"))
+		command = ansi.Truncate(safeReviewText(command), max(1, m.viewport.Width-2), "…")
+		if i == h.selection {
+			text += m.theme.selectedRow(command) + "\n"
+		} else {
+			text += fmt.Sprintf("%s%s\n", marker, command)
+		}
 	}
 	if len(matches) > 0 {
 		entry := matches[h.selection]
@@ -160,9 +165,9 @@ func (m Model) historyView() string {
 		if entry.ExitCode != nil {
 			status = fmt.Sprint(*entry.ExitCode)
 		}
-		text += fmt.Sprintf("\nDirectory: %q  Exit: %s  Duration: %s\n", entry.Directory, status, entry.Duration)
+		text += m.theme.metadata(fmt.Sprintf("\nDirectory: %q  Exit: %s  Duration: %s\n", entry.Directory, status, entry.Duration))
 	}
-	return text + "\n[↑↓/ctrl+p/ctrl+n] Select  [ctrl+u] Clear search  [enter] Insert for review  [esc] Back"
+	return text + "\n" + m.theme.primaryHint("[↑↓/ctrl+p/ctrl+n] Select  [ctrl+u] Clear search  [enter] Insert for review  [esc] Back")
 }
 
 // saveHistoryEntry is invoked only by an explicit selected-block save action.

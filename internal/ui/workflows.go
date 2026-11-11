@@ -290,7 +290,7 @@ func workflowEdit(msg tea.KeyMsg, text string, position, limit int, parameter bo
 func (m Model) workflowView() string {
 	a := m.composer.workflows
 	var text strings.Builder
-	text.WriteString("Shell workflows - insert for review; nothing sends automatically\n\n")
+	text.WriteString(m.theme.screenTitle("Shell workflows") + "\n" + m.theme.metadata("Insert for review; nothing sends automatically") + "\n\n")
 	if a.pending {
 		if a.saving {
 			text.WriteString("Saving...\n")
@@ -299,16 +299,16 @@ func (m Model) workflowView() string {
 		}
 	}
 	if a.err != nil {
-		fmt.Fprintf(&text, "Error: %q\n\n", a.err.Error())
+		fmt.Fprintf(&text, "%s\n\n", m.theme.errorText(fmt.Sprintf("Error: %q", a.err.Error())))
 	}
 	if a.mode == workflowNaming {
 		r := []rune(a.name)
-		fmt.Fprintf(&text, "Save draft as: %s▏%s\n\nOnly the draft template is saved. Avoid secrets in saved text.\n\nTemplate:\n%s", string(r[:a.position]), string(r[a.position:]), m.composer.draft)
+		fmt.Fprintf(&text, "%s\nSave draft as: %s▏%s\n\n%s\n\n%s\n%s", m.theme.sectionLabel("Save workflow"), string(r[:a.position]), string(r[a.position:]), m.theme.metadata("Only the draft template is saved. Avoid secrets in saved text."), m.theme.sectionLabel("Template"), m.composer.draft)
 		return text.String()
 	}
 	if a.mode == workflowParameters {
 		r := []rune(a.values[a.parameter])
-		fmt.Fprintf(&text, "Workflow: %s\nParameter %d/%d: %s\nValue: %s▏%s\n\nValues are temporary and are not saved.\n\nTemplate:\n%s", a.name, a.parameter+1, len(a.names), a.names[a.parameter], string(r[:a.position]), string(r[a.position:]), a.template)
+		fmt.Fprintf(&text, "%s\nParameter %d/%d: %s\nValue: %s▏%s\n\n%s\n\n%s\n%s", m.theme.sectionLabel("Workflow: "+a.name), a.parameter+1, len(a.names), m.theme.metadata(a.names[a.parameter]), string(r[:a.position]), string(r[a.position:]), m.theme.metadata("Values are temporary and are not saved."), m.theme.sectionLabel("Template"), a.template)
 		return text.String()
 	}
 	if len(a.entries) == 0 {
@@ -320,10 +320,14 @@ func (m Model) workflowView() string {
 		if i == a.selected {
 			marker = "> "
 		}
-		fmt.Fprintf(&text, "%s%s\n", marker, a.entries[i].Name)
+		if i == a.selected {
+			text.WriteString(m.theme.selectedRow(a.entries[i].Name) + "\n")
+		} else {
+			fmt.Fprintf(&text, "%s%s\n", marker, a.entries[i].Name)
+		}
 	}
 	if a.selected < len(a.entries) {
-		text.WriteString("\nSelected template:\n" + a.entries[a.selected].Template)
+		text.WriteString("\n" + m.theme.sectionLabel("Selected template") + "\n" + a.entries[a.selected].Template)
 	}
 	return text.String()
 }

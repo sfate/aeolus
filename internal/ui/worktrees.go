@@ -256,7 +256,9 @@ func (m Model) worktreeView() string {
 		status = "Partial worktree retained. Inspect it manually. [esc] Close"
 	}
 	if f.err != nil {
-		status = safeReviewText(f.err.Error()) + "\n\n" + status
+		status = m.theme.errorText(safeReviewText(f.err.Error())) + "\n\n" + m.theme.primaryHint(status)
+	} else {
+		status = m.theme.primaryHint(status)
 	}
-	return fmt.Sprintf("Launch agent in a new Git worktree\n\nSource: %s\nDestination (absolute new path): %s\nNew branch: %s\nAgent: %s\n\n%s", strconv.Quote(f.source), fields[0], fields[1], launchProviders[f.provider], status)
+	return fmt.Sprintf("%s\n\n%s %s\n%s %s\n%s %s\n%s %s\n\n%s", m.theme.screenTitle("Launch agent in a new Git worktree"), m.theme.metadata("Source:"), m.theme.metadata(strconv.Quote(f.source)), m.theme.sectionLabel("Destination"), fields[0], m.theme.sectionLabel("New branch"), fields[1], m.theme.sectionLabel("Agent"), launchProviders[f.provider], status)
 }

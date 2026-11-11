@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -16,6 +17,30 @@ func fitScreen(text string, width, height int) string {
 	lines := strings.Split(text, "\n")
 	if len(lines) > height {
 		lines = lines[:height]
+	}
+	for i := range lines {
+		lines[i] = fitLine(lines[i], width)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func fitScreenWithFooter(text string, width, height int) string {
+	if width <= 0 || height <= 0 {
+		return ""
+	}
+	lines := strings.Split(text, "\n")
+	if len(lines) > height {
+		if height <= 2 {
+			lines = append([]string{}, lines[:height]...)
+		} else {
+			tail := min(2, height-2)
+			head := height - tail - 1
+			omitted := len(lines) - head - tail
+			visible := append([]string{}, lines[:head]...)
+			visible = append(visible, fmt.Sprintf("… %d lines hidden …", omitted))
+			visible = append(visible, lines[len(lines)-tail:]...)
+			lines = visible
+		}
 	}
 	for i := range lines {
 		lines[i] = fitLine(lines[i], width)

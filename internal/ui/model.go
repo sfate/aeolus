@@ -712,7 +712,7 @@ func (m *Model) sessionContentPaneText() string {
 				m.theme.renderer.NewStyle().Bold(true).Foreground(m.theme.colorIdle).Render("[n/esc] Cancel") + "\n",
 		)
 		sb.WriteString("\n")
-		sb.WriteString(m.theme.renderer.NewStyle().Foreground(m.theme.colorHelp).Render("─── context ───") + "\n")
+		sb.WriteString(m.theme.sectionLabel("Context") + "\n")
 		sb.WriteString(tailLines(s.Content, 15))
 		return sb.String()
 	}
@@ -740,7 +740,7 @@ func (m *Model) sessionContentPaneText() string {
 				m.theme.renderer.NewStyle().Bold(true).Foreground(m.theme.colorError).Render("[n] Deny") + "\n",
 		)
 		sb.WriteString("\n")
-		sb.WriteString(m.theme.renderer.NewStyle().Foreground(m.theme.colorHelp).Render("─── context ───") + "\n")
+		sb.WriteString(m.theme.sectionLabel("Context") + "\n")
 		sb.WriteString(tailLines(s.Content, 15))
 		return sb.String()
 	}
@@ -759,7 +759,7 @@ func (m *Model) sessionContentPaneText() string {
 				m.theme.renderer.NewStyle().Bold(true).Foreground(m.theme.colorError).Render("[n] No") + "\n",
 		)
 		sb.WriteString("\n")
-		sb.WriteString(m.theme.renderer.NewStyle().Foreground(m.theme.colorHelp).Render("─── context ───") + "\n")
+		sb.WriteString(m.theme.sectionLabel("Context") + "\n")
 		sb.WriteString(tailLines(s.Content, 15))
 		return sb.String()
 	}
@@ -800,13 +800,13 @@ func (m Model) view() string {
 		return fitScreen("Resize to at least 24x12.\n[q] Quit", m.width, m.height)
 	}
 	if m.shellBatch.active {
-		return fitScreen(m.shellBatchView(), m.width, m.height)
+		return fitScreenWithFooter(m.shellBatchView(), m.width, m.height)
 	}
 	if m.palette.active {
-		return fitScreen(m.paletteView(), m.width, m.height)
+		return fitScreenWithFooter(m.paletteView(), m.width, m.height)
 	}
 	if m.localSearch.active {
-		return fitScreen(m.localSearchView(), m.width, m.height)
+		return fitScreenWithFooter(m.localSearchView(), m.width, m.height)
 	}
 	if m.notebooks.active {
 		return m.notebookView()
@@ -815,9 +815,9 @@ func (m Model) view() string {
 		return m.layoutView()
 	}
 	if m.help.active {
-		return fitScreen(m.helpView(), m.width, m.height)
+		return fitScreenWithFooter(m.helpView(), m.width, m.height)
 	}
-	return fitScreen(m.screenView(), m.width, m.height)
+	return fitScreenWithFooter(m.screenView(), m.width, m.height)
 }
 
 func (m Model) screenView() string {
@@ -831,15 +831,15 @@ func (m Model) screenView() string {
 		)
 	}
 	header := fitLine(lipgloss.JoinHorizontal(lipgloss.Top, title, subtitle, ts), m.width)
-	header += "\n" + fitLine(m.theme.styleHelp.Render(m.filterSummary()), m.width)
-	if m.preferenceNotice != "" {
-		header += "\n" + fitLine(safeReviewText(m.preferenceNotice), m.width)
+	header += "\n" + fitLine(m.theme.metadata(m.filterSummary()), m.width)
+	notices := make([]string, 0, 3)
+	for _, notice := range []string{m.preferenceNotice, m.layoutNotice, m.historyNotice} {
+		if notice != "" {
+			notices = append(notices, safeReviewText(notice))
+		}
 	}
-	if m.layoutNotice != "" {
-		header += "\n" + fitLine(safeReviewText(m.layoutNotice), m.width)
-	}
-	if m.historyNotice != "" {
-		header += "\n" + fitLine(safeReviewText(m.historyNotice), m.width)
+	if len(notices) > 0 {
+		header += "\n" + fitLine(m.theme.metadata(strings.Join(notices, "  ·  ")), m.width)
 	}
 
 	if m.worktree.active {
@@ -866,10 +866,7 @@ func (m Model) screenView() string {
 		return lipgloss.JoinVertical(lipgloss.Left, header, errMsg, m.helpBar())
 	}
 	if m.err != nil {
-		errMsg := m.theme.renderer.NewStyle().
-			Foreground(m.theme.colorError).
-			Padding(1, 2).
-			Render("Error: " + m.err.Error())
+		errMsg := m.theme.styleError.Padding(1, 2).Render("Error: " + m.err.Error())
 		return lipgloss.JoinVertical(lipgloss.Left, header, errMsg, m.helpBar())
 	}
 
@@ -965,14 +962,10 @@ func (m Model) renderSessionList(width, height int) string {
 		statusColored := m.statusStyle(s.Status).Render(statusTag)
 		row := fmt.Sprintf("%s%s  %s", icon, name, statusColored)
 
-		if selected && s.Status == monitor.StatusPermission {
+		if selected {
+			row = m.theme.styleSelected.Render(row)
+		} else if s.Status == monitor.StatusPermission && s.CanRespond() {
 			row = m.theme.renderer.NewStyle().Background(m.theme.colorPermBg).Bold(true).Render(row)
-		} else if selected && s.Status == monitor.StatusQuestion {
-			row = m.theme.renderer.NewStyle().Background(m.theme.colorQuestionBg).Bold(true).Render(row)
-		} else if selected {
-			row = m.theme.renderer.NewStyle().Background(m.theme.colorSelected).Bold(true).Render(row)
-		} else if s.CanRespond() && s.Status == monitor.StatusPermission {
-			row = m.theme.renderer.NewStyle().Background(m.theme.colorPermBg).Render(row)
 		} else if s.CanRespond() && s.Status == monitor.StatusQuestion {
 			row = m.theme.renderer.NewStyle().Background(m.theme.colorQuestionBg).Render(row)
 		}

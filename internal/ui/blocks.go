@@ -388,8 +388,8 @@ func (m Model) blocksView() string {
 	b := m.blocks
 	visible := m.visibleBlocks()
 	var text strings.Builder
-	fmt.Fprintf(&text, "Captured command blocks - pane %s\n\n", b.paneID)
-	text.WriteString("Capture records commands and terminal output in private temporary storage. Output may contain secrets.\n")
+	text.WriteString(m.theme.screenTitle("Captured command blocks") + "\n")
+	fmt.Fprintf(&text, "%s\n\n", m.theme.metadata("Pane "+b.paneID+" · Capture output may contain secrets."))
 	if b.bookmarkOnly {
 		text.WriteString("Showing bookmarked blocks only.\n")
 	}
@@ -426,7 +426,12 @@ func (m Model) blocksView() string {
 		if width < 20 {
 			width = 80
 		}
-		fmt.Fprintf(&text, "%s%s#%d %s\n", marker, star, block.ID, ansi.Truncate(safeReviewText(command), width-11, "…"))
+		label := fmt.Sprintf("%s#%d %s", star, block.ID, ansi.Truncate(safeReviewText(command), width-11, "…"))
+		if i == b.selection {
+			text.WriteString(m.theme.selectedRow(label) + "\n")
+		} else {
+			fmt.Fprintf(&text, "%s%s\n", marker, label)
+		}
 	}
 	if b.selection < len(visible) {
 		block := visible[b.selection]

@@ -206,7 +206,7 @@ func (m Model) paletteView() string {
 	query := string(runes[:p.position]) + "▏" + string(runes[p.position:])
 	actions := m.paletteActions()
 	var text strings.Builder
-	fmt.Fprintf(&text, "Command palette\nFilter: %s\n\n", query)
+	fmt.Fprintf(&text, "%s\n%s %s\n\n", m.theme.screenTitle("Command palette"), m.theme.metadata("Filter:"), query)
 	selected := -1
 	for i, action := range actions {
 		if action.key == p.selected {
@@ -221,7 +221,12 @@ func (m Model) paletteView() string {
 		if i == selected {
 			marker = "> "
 		}
-		fmt.Fprintf(&text, "%s%s [%s]\n", marker, actions[i].label, actions[i].key)
+		label := fmt.Sprintf("%s %s", actions[i].label, m.theme.metadata("["+actions[i].key+"]"))
+		if i == selected {
+			text.WriteString(m.theme.selectedRow(label) + "\n")
+		} else {
+			fmt.Fprintf(&text, "%s%s\n", marker, label)
+		}
 	}
 	if len(actions) == 0 {
 		text.WriteString("No matching actions.\n")
@@ -229,6 +234,6 @@ func (m Model) paletteView() string {
 	if len(actions) > 0 && selected < 0 {
 		text.WriteString("Selection unavailable; use arrows to select.\n")
 	}
-	text.WriteString("\n[↑↓/ctrl+p/ctrl+n] Select  [enter] Execute  [esc] Cancel")
+	text.WriteString("\n" + m.theme.primaryHint("[↑↓/ctrl+p/ctrl+n] Select  [enter] Execute  [esc] Cancel"))
 	return ansi.Hardwrap(text.String(), max(1, m.width), true)
 }

@@ -256,7 +256,7 @@ func (m Model) shellBatchView() string {
 	var out strings.Builder
 	switch b.mode {
 	case shellBatchSelect:
-		out.WriteString("Send command to managed shells\nSelect targets with Space, then Enter. The selected pane starts checked.\n\n")
+		out.WriteString(m.theme.screenTitle("Send command to managed shells") + "\n" + m.theme.metadata("Select targets with Space. The selected pane starts checked.") + "\n\n")
 		for i, target := range b.targets {
 			mark := "[ ]"
 			if target.selected {
@@ -266,36 +266,44 @@ func (m Model) shellBatchView() string {
 			if i == b.cursor {
 				cursor = "> "
 			}
-			fmt.Fprintf(&out, "%s%s %s/%s  %s\n", cursor, mark, safeReviewText(target.sessionName), safeReviewText(target.windowName), safeReviewText(target.currentPath))
+			label := fmt.Sprintf("%s/%s  %s", safeReviewText(target.sessionName), safeReviewText(target.windowName), safeReviewText(target.currentPath))
+			if i == b.cursor {
+				out.WriteString(m.theme.selectedRow(mark+" "+label) + "\n")
+			} else {
+				fmt.Fprintf(&out, "%s%s %s\n", cursor, mark, label)
+			}
 		}
-		out.WriteString("\n[Space] Toggle  [Enter] Compose  [Esc] Cancel")
+		out.WriteString("\n" + m.theme.primaryHint("[Space] Toggle  [Enter] Compose  [Esc] Cancel"))
 	case shellBatchEdit:
-		fmt.Fprintf(&out, "Command for %d managed shell(s)\nEdit the literal command below. It executes when submitted.\n\n%s▏\n\n[ctrl+s] Review targets and command  [Esc] Back", selectedShellTargetCount(b.targets), safeReviewText(b.command))
+		fmt.Fprintf(&out, "%s\n%s\n\n%s▏\n\n%s", m.theme.screenTitle(fmt.Sprintf("Command for %d managed shell(s)", selectedShellTargetCount(b.targets))), m.theme.metadata("Edit the literal command below. It executes when submitted."), safeReviewText(b.command), m.theme.primaryHint("[ctrl+s] Review targets and command  [Esc] Back"))
 	case shellBatchReview:
-		out.WriteString("Review command and targets\nThe command will be submitted to each selected shell.\n\nTargets:\n")
+		out.WriteString(m.theme.screenTitle("Review command and targets") + "\n" + m.theme.metadata("The command will be submitted to each selected shell.") + "\n\n" + m.theme.sectionLabel("Targets") + "\n")
 		for _, target := range b.targets {
 			if target.selected {
 				fmt.Fprintf(&out, "- pane %s, %s/%s (%s)\n", target.paneID, safeReviewText(target.sessionName), safeReviewText(target.windowName), safeReviewText(target.currentPath))
 			}
 		}
-		fmt.Fprintf(&out, "\nCommand:\n%s\n\n[y] Send once to every selected pane  [n] Cancel  [Esc] Edit", safeReviewText(b.command))
+		fmt.Fprintf(&out, "\n%s\n%s\n\n%s", m.theme.sectionLabel("Command"), safeReviewText(b.command), m.theme.primaryHint("[y] Send once to every selected pane  [n] Cancel  [Esc] Edit"))
 	case shellBatchSending:
-		out.WriteString("Verifying shell targets and sending command…\n\nPlease wait; no automatic retries are made.")
+		out.WriteString(m.theme.screenTitle("Sending command") + "\n\n" + m.theme.metadata("Verifying shell targets. No automatic retries are made."))
 	case shellBatchDone:
 		if b.err != nil {
-			fmt.Fprintf(&out, "No command sent: %s\n", safeReviewText(b.err.Error()))
+			fmt.Fprintf(&out, "%s\n", m.theme.errorText("No command sent: "+safeReviewText(b.err.Error())))
 		}
 		for _, result := range b.results {
 			status := "sent"
 			if result.err != nil {
-				status = "failed: " + safeReviewText(result.err.Error())
+				status = m.theme.errorText("failed: " + safeReviewText(result.err.Error()))
+			} else {
+				status = m.theme.primaryHint(status)
 			}
-			fmt.Fprintf(&out, "%s/%s (%s): %s\n", safeReviewText(result.sessionName), safeReviewText(result.windowName), result.paneID, status)
+			target := m.theme.metadata(fmt.Sprintf("%s/%s (%s): ", safeReviewText(result.sessionName), safeReviewText(result.windowName), result.paneID))
+			fmt.Fprintf(&out, "%s%s\n", target, status)
 		}
-		out.WriteString("\n[Enter/Esc] Close")
+		out.WriteString("\n" + m.theme.primaryHint("[Enter/Esc] Close"))
 	}
 	if b.err != nil && b.mode != shellBatchDone {
-		fmt.Fprintf(&out, "\n\n%s", safeReviewText(b.err.Error()))
+		fmt.Fprintf(&out, "\n\n%s", m.theme.errorText(safeReviewText(b.err.Error())))
 	}
 	width := m.width
 	if width <= 0 {
